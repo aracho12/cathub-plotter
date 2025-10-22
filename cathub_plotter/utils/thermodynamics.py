@@ -5,21 +5,73 @@ from typing import List, Dict, Any
 import numpy as np
 
 try:
-    from temperature.utils import cm1_to_ev
-    from temperature.db import DB
-    from temperature.utils import clean_species_name
-    from temperature.config import IDEAL_GAS_PARAMS, DATASET_DICT, E_FORM_GAS_DICT
     from ase.thermochemistry import IdealGasThermo, HarmonicThermo
     from ase.build import molecule
-    TEMPERATURE_MODULE_AVAILABLE = True
+    ASE_AVAILABLE = True
 except ImportError:
-    TEMPERATURE_MODULE_AVAILABLE = False
-    print("Warning: temperature module not available. Some functionality may be limited.")
+    ASE_AVAILABLE = False
+    print("Warning: ASE not available. Some functionality may be limited.")
 
-if TEMPERATURE_MODULE_AVAILABLE:
-    DB_instance = DB()
-else:
-    DB_instance = None
+# Import our own frequency database
+from .frequency_db import FrequencyDB
+
+# Initialize frequency database
+freq_db = FrequencyDB()
+
+# Physical constants
+CM1_TO_EV = 1.239841984e-4  # cm^-1 to eV conversion
+EV_TO_CM1 = 1 / CM1_TO_EV   # eV to cm^-1 conversion
+
+def cm1_to_ev(frequency_cm1: float) -> float:
+    """Convert frequency from cm^-1 to eV"""
+    return frequency_cm1 * CM1_TO_EV
+
+def clean_species_name(species: str) -> tuple:
+    """
+    Clean species name and determine status
+    
+    Args:
+        species: Species name (e.g., 'CO_g', 'CO*')
+        
+    Returns:
+        tuple: (cleaned_name, status)
+    """
+    if species.endswith('_g'):
+        return species.replace('_g', ''), 'gas'
+    elif species.endswith('*'):
+        return species.replace('*', ''), 'ads'
+    else:
+        return species, 'unknown'
+
+# Default ideal gas parameters
+IDEAL_GAS_PARAMS = {
+    'H2': [2, 'linear', 0],
+    'CO': [1, 'linear', 0],
+    'CO2': [2, 'linear', 0],
+    'H2O': [2, 'nonlinear', 0],
+    'CH4': [12, 'nonlinear', 0],
+    'C2H4': [4, 'nonlinear', 0],
+    'CH3OH': [1, 'nonlinear', 0],
+    'HCOOH': [1, 'nonlinear', 0],
+    'C2H6': [6, 'nonlinear', 0],
+    'C3H8': [3, 'nonlinear', 0],
+    'HCOO': [1, 'nonlinear', 0],
+}
+
+# Default formation energies for gas species (in eV)
+E_FORM_GAS_DICT = {
+    'H2': 0.0,
+    'CO': -1.23,
+    'CO2': -4.46,
+    'H2O': -2.46,
+    'CH4': -0.68,
+    'C2H4': 1.33,
+    'CH3OH': -1.68,
+    'HCOOH': -2.88,
+    'C2H6': -0.28,
+    'C3H8': 0.20,
+    'HCOO': -2.88,
+}
 
 # Default fugacity values in Pa
 DEFAULT_FUGACITY_DICT = {
@@ -57,14 +109,14 @@ def calculate_thermo_correction(species: str, temperature: float = 298.15,
     """
     # Convert frequencies from cm-1 to eV
     
-    if not TEMPERATURE_MODULE_AVAILABLE:
-        raise ImportError("temperature module is required for thermodynamic calculations")
+    if not ASE_AVAILABLE:
+        raise ImportError("ASE is required for thermodynamic calculations")
     
     if frequencies is None:
         if species in ['ele_g', 'H_g']:
             frequencies = []
         else:
-            frequencies = DB_instance.get_frequencies(species)
+            frequencies = freq_db.get_frequencies(species)
         #print(f"frequencies: {frequencies}")
     
     if fugacity is None:

@@ -3,9 +3,9 @@ Free Energy Calculator for Catalysis-Hub data
 """
 from ..parsers.cathub import CatalysisHubParser
 from ..utils.thermodynamics import calculate_thermo_correction
+from ..utils.frequency_db import FrequencyDB
 from typing import List, Dict, Optional
 import pandas as pd
-from temperature.db import DB
 
 class FreeEnergyCalculator:
     """
@@ -40,9 +40,8 @@ class FreeEnergyCalculator:
         self.use_solvation = use_solvation
         self.solvation_dict = solvation_dict or self.DEFAULT_SOLVATION_DICT.copy()
         
-        # Initialize database for solvation energies
-        if self.use_solvation:
-            self.db_instance = DB()
+        # Initialize frequency database
+        self.freq_db = FrequencyDB()
     
     def search_and_calculate(self,
                             reactants: List[str] = None,
@@ -138,9 +137,9 @@ class FreeEnergyCalculator:
         if species in self.solvation_dict:
             return self.solvation_dict[species]
         
-        # Try database lookup
+        # Try frequency database lookup
         try:
-            return self.db_instance.get_solvation_energy(species)
+            return self.freq_db.get_solvation_energy(species)
         except:
             return 0.0
     
