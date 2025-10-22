@@ -1,0 +1,124 @@
+rxn_expressions:
+  1: 'H_g + ele_g + *_t <-> H-ele*_t <-> H*_t; beta=0.65, prefactor=1e10'  # Volmer 1
+  2: 'H_g + ele_g + H*_t -> H2-ele*_t -> H2_g + *_t; beta=0.65, prefactor=1e7'   # Heyrovsky 2
+  3: 'H*_t + H*_t -> H-H*_t + *_t -> H2_g + 2*_t; prefactor=1e13'   # Tafel 3
+  
+  4: 'CO2_g + H_g + ele_g +2*_t <-> CO2-H-ele_t <-> COOH_t; beta=0.5, prefactor=1e4'
+  5: 'COOH_t + H_g + ele_g <-> COOH-H-ele_t <-> CO*_t + H2O_g + *_t; beta=0.5'
+  6: 'CO_t <-> ^0.60eV_t <-> CO_g + *_t; prefactor=1e8'
+
+  7: 'CO2_g + H_t + *_t <-> H-CO2-ele_t <-> HCOO_t ; beta=0.5'
+  8: 'HCOO_t + H_g +ele_g <-> HCOO-H-ele_t <-> HCOOH_g + 2*_t; beta=0.5'
+
+  9: 'CO*_t + H_g + ele_g <-> H-CO-ele*_t <-> CHO*_t; beta=0.5'
+  10: 'CO*_t + H_g + ele_g <-> CO-H-ele*_t <-> COH*_t; beta=0.6'  # Electro_COH 15'
+  11: 'CO*_t + H*_t <-> H-CO*_t + *_t <-> CHO*_t + *_t; prefactor=1e13' # Thermo_CHO 18
+
+  12: 'CHO*_t + H_g + ele_g <-> CHO-H-ele*_t <-> CHOH*_t; beta=0.5'
+  13: 'CHOH*_t + H_g + ele_g <-> CHOH-H-ele*_t <-> CH*_t + H2O_g; beta=0.5'
+  14: 'C*_t + H_g + ele_g <-> C-H-ele*_t <-> CH*_t; beta=0.6'
+  15: 'CH*_t + H_g + ele_g <-> CH-H-ele*_t <-> CH2*_t; beta=0.5'
+  16: 'CH2*_t + H_g + ele_g <-> CH2-H-ele*_t <-> CH3*_t; beta=0.5'
+  17: 'CH3*_t + H_g + ele_g <-> CH3-H-ele*_t <-> CH4_g + *_t; beta=0.5'
+  
+  18: 'COH*_t + H*_t <-> COH-H*_t + *_t <-> CHOH*_t + *_t; prefactor=1e13'
+  19: 'COH*_t + H_g + ele_g <-> CHOH*_t ; prefactor=1e13'
+  20: 'COH*_t + H_g + ele_g <-> COH-H-ele*_t <-> C*_t + H2O_g; beta = 0.45'
+
+  21: 'C*_t + H*_t <-> C-H*_t + *_t <-> CH*_t + *_t; prefactor=1e13'  #20
+  22: 'CH*_t + H*_t <-> CH-H*_t + *_t <-> CH2*_t + *_t; prefactor=1e13'  #21
+  23: 'CH2*_t + H*_t <-> CH2-H*_t + *_t <-> CH3*_t + *_t; prefactor=1e13'  #22
+  24: 'CH3*_t + H*_t <-> CH3-H*_t + *_t <-> CH4_g + 2*_t; prefactor=1e13'  #23
+
+  25: 'CO*_t + C*_t <-> OC-C*_t <-> OCC*_t + *_t; prefactor=1e11' #Thermo_CCO_surface 25
+  26: 'CO_g + C*_t <-> C-CO*_t  <-> OCC*_t ; prefactor=1e9' #Thermo_CCO_gas 26
+
+  27: '2CO_t <-> OCCO_t' # OCCO dimerization
+  28: 'OCCO_t + H_g + ele_g <-> OCCO-H-ele_t <-> OCCOH_t; beta=0.5'
+  29: 'OCCOH_t + H_g + ele_g <-> OCC_t + H2O_g + *_t; beta=0.5'
+  30: 'OCC*_t + H_g + ele_g <-> OCC-H-ele_t <-> OCCH_t; beta=0.5'
+  31: 'OCCH_t + 5H_g + 5ele_g <-> C2H4_g + H2O_g + *_t'
+  
+  32: 'CO_t + CH_t <-> OC-CH_t <-> OCCH_t + *_t; prefactor=1e13'
+  33: '2CH2*_t <-> CH2-CH2*_t <-> C2H4_g + 2*_t' # CH2-CH2 coupling 
+
+  34: 'CHO*_t + H_g + ele_g <-> CH2O*_t; beta=0.5'
+  35: 'CH2O*_t <-> CH2O_g + *_t'
+
+  36: 'CHOH*_t + H_g + ele_g <-> CH2OH*_t; beta=0.5'
+  37: 'CH2OH*_t + H_g + ele_g <-> CH3OH_g + 2*_t'
+
+  38: 'CH2O*_t + H_g + ele_g <-> CH3O*_t; beta=0.5'
+  39: 'CH2O*_t + H_g + ele_g <-> CH2OH*_t; beta=0.5'
+  40: 'CH3O*_t + H_g + ele_g <-> CH3OH_g + 2*_t'
+  
+  41: 'CO_t + COH_t <-> OCCOH_t'
+
+rxn_mechanisms:
+  H2:
+    HER_Heyrovsky:
+      steps: [1, 2]
+      color: '#7F7F7F' #grey Tin
+    HER_Tafel:
+      steps: [1, 1, 3]
+      color: '#999999' #grey Aluminium
+  CO:
+    via_COOH:
+      steps: [4,5,6]
+      color: '#008080' #teal
+  HCOOH:
+    via_HCOO:
+      steps: [1,7,8]
+      color: '#008000' #clover green
+  CH4:
+    via_COH_electro:
+      steps: [4,5,10,20,14,15,16,17] #CO->COH->C->CH->CH2->CH3->CH4
+      color: '#800000' #dark red, cayenne
+    via_COH_thermo:
+      steps: [4,5,10,20,1,21,1,22,1,23,1,24]
+      color: '#804000' #dark brown, mocha
+    via_HCO_CHOH:
+      steps: [4,5,1,11,12,13,15,16,17] #CO->H->HCO->CHOH->CH->CH2->CH3->CH4
+      color: '#FF8000' #dark orange, tangerine
+    via_COH_CHOH:
+      steps: [4,5,10,19,13,15,16,17]
+      color: '#FFCC66' #light orange, cantaloupe
+    via_COH_CHOH_thermo:
+      steps: [4,5,10,1,18,13,1,22,1,23,1,24]
+      color: '#FF6666' #light red, salmon
+    related_steps:
+      steps: [9]
+      color: '#FF6666' #light red, salmon
+
+  C2H4:
+    via_OCCOH:
+      steps: [4,5,4,5,27,28,29,30,31]
+      color: '#800080' #purple plum
+    via_C-CO:
+      steps: [4,5,10,20,4,5,25,30,31]
+      color: '#FF6666' #light red, salmon
+    via_CH-CO:
+      steps: [4,5,10,20,14,4,5,32,31]
+      color: '#400080' #dark purple, eggplant
+    via_CH2-CH2:
+      steps: [4,5,10,20,14,15,4,5,10,20,14,15,33]
+      color: '#CC66FF' #lavender
+    related_steps:
+      steps: [21,22,13,18,9,26,11,6]
+      color: '#CC66FF' #lavender
+  
+  CH3OH:
+    via_CH2OH:
+      steps: [4,5,1,11,34,39,37]
+      color: '#004080' #dark blue, indigo
+    via_CH3O:
+      steps: [4,5,1,11,34,38,40]
+      color: '#0080FF' #light blue, aqua
+    via_CHOH:
+      steps: [4,5,1,11,12,36,37]
+      color: '#FF8000' #dark orange, tangerine
+    
+  CH2O:
+    via_CHO:
+      steps: [4,5,1,11,34,35]
+      color: '#66CCFF' #light blue, sky
