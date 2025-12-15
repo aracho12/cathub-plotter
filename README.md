@@ -16,7 +16,7 @@ A Python package for plotting free energy diagrams from catalysis-hub.org data a
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/cathub-plotter.git
+git clone https://github.com/aracho12/cathub-plotter.git
 cd cathub-plotter
 pip install -e .
 ```
