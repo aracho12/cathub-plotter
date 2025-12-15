@@ -912,9 +912,11 @@ def search_command(args):
 
 def main():
     """Main CLI entry point"""
+    # Allow negative numbers as arguments (not as options)
     parser = argparse.ArgumentParser(
         description="Cathub-Plotter: Free Energy Diagram Plotting for Catalysis Research",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,  # Disable abbreviations to avoid conflicts
         epilog="""
 Examples:
   # Plot free energy diagram from MKM file
@@ -930,13 +932,13 @@ Examples:
   cathub-plotter compare --mkm-file config.yaml --input-file input.txt --vary mechanism \\
     --mechanisms HER_Heyrovsky,HER_Tafel --surface Cu --facet 100 -T 298.15 -U -0.5
   
-  # Compare voltages (1D)
+  # Compare voltages (1D) - Note: use = sign and quotes for negative values
   cathub-plotter compare --mkm-file config.yaml --input-file input.txt --vary voltage \\
-    --voltages -1.0,-0.8,-0.6,-0.4,-0.2,0.0 --mechanism HER_Heyrovsky --surface Cu --facet 100
+    --voltages="-1.0,-0.8,-0.6,-0.4,-0.2,0.0" --mechanism HER_Heyrovsky --surface Cu --facet 100
   
   # Compare mechanism vs voltage (2D subplots)
   cathub-plotter compare --mkm-file config.yaml --input-file input.txt --vary mechanism,voltage \\
-    --mechanisms HER_Heyrovsky,HER_Tafel --voltages -1.0,-0.5,0.0 --surface Cu --facet 100 \\
+    --mechanisms HER_Heyrovsky,HER_Tafel --voltages="-1.0,-0.5,0.0" --surface Cu --facet 100 \\
     --layout subplots -o comparison.png
   
   # Compare surfaces (1D)

@@ -47,14 +47,15 @@ cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
   --surface Cu --facet 100 -U -0.5
 
 # Compare voltages (voltage sweep)
+# Note: Use = sign and quotes for negative values
 cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
-  --vary voltage --voltages -1.0,-0.8,-0.6,-0.4,-0.2,0.0 \
+  --vary voltage --voltages="-1.0,-0.8,-0.6,-0.4,-0.2,0.0" \
   --mechanism HER_Heyrovsky --surface Cu --facet 100
 
 # 2D comparison: mechanism vs voltage
 cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
   --vary mechanism,voltage \
-  --mechanisms HER_Heyrovsky,HER_Tafel --voltages -1.0,-0.5,0.0 \
+  --mechanisms HER_Heyrovsky,HER_Tafel --voltages="-1.0,-0.5,0.0" \
   --surface Cu --facet 100 --layout subplots
 
 # Search catalysis-hub and calculate free energies
@@ -171,9 +172,10 @@ cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
   --show-barriers -o mechanism_comparison.png
 
 # Voltage sweep (very useful for electrochemistry!)
+# Note: Use quotes for negative values to avoid parsing issues
 cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
   --vary voltage \
-  --voltages -1.0,-0.8,-0.6,-0.4,-0.2,0.0 \
+  --voltages="-1.0,-0.8,-0.6,-0.4,-0.2,0.0" \
   --mechanism HER_Heyrovsky --surface Cu --facet 100 -T 298.15 \
   --show-barriers -o voltage_sweep.png --save-data
 
@@ -203,10 +205,11 @@ cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
 
 ```bash
 # Mechanism vs Voltage (subplots layout)
+# Note: Use = sign and quotes for negative values
 cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
   --vary mechanism,voltage \
   --mechanisms HER_Heyrovsky,HER_Tafel \
-  --voltages -1.0,-0.5,0.0 \
+  --voltages="-1.0,-0.5,0.0" \
   --surface Cu --facet 100 -T 298.15 \
   --layout subplots --show-barriers -o mech_vs_voltage.png --save-data
 
@@ -221,7 +224,7 @@ cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
 # Voltage vs Temperature (subplots)
 cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
   --vary voltage,temperature \
-  --voltages -1.0,-0.5,0.0 \
+  --voltages="-1.0,-0.5,0.0" \
   --temperatures 298.15,400,500 \
   --mechanism HER_Heyrovsky --surface Cu --facet 100 \
   --layout subplots -o voltage_vs_temp.png
