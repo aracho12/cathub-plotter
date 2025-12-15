@@ -20,14 +20,45 @@ def plot_command(args):
             voltage=args.voltage
         )
         
+        # Prepare plot_mechanism kwargs
+        plot_kwargs = {}
+        if hasattr(args, 'y_margin') and args.y_margin is not None:
+            plot_kwargs['y_margin_fraction'] = args.y_margin
+        if hasattr(args, 'ylim') and args.ylim is not None:
+            plot_kwargs['ylim'] = args.ylim
+        
         if args.mechanism:
-            plotter.plot_mechanism(args.mechanism, save_path=args.output)
+            plotter.plot_mechanism(args.mechanism, save_path=args.output, **plot_kwargs)
+            
+            # Save raw data if requested
+            if args.save_data:
+                # Determine CSV filename
+                if args.output:
+                    csv_path = args.output.rsplit('.', 1)[0] + '_data.csv'
+                else:
+                    csv_path = f"{args.mechanism}_data.csv"
+                
+                # Calculate and save data
+                data = plotter.calculate_mechanism_energies(args.mechanism, verbose=False)
+                plotter.save_mechanism_data(data, csv_path)
+                print(f"Raw data saved to {csv_path}")
         else:
             # Plot all mechanisms
             mechanisms = list(plotter.rxn_mechanisms.keys())
             for mech in mechanisms:
                 output_path = f"{args.output}_{mech}.png" if args.output else None
-                plotter.plot_mechanism(mech, save_path=output_path)
+                plotter.plot_mechanism(mech, save_path=output_path, **plot_kwargs)
+                
+                # Save raw data if requested
+                if args.save_data:
+                    if args.output:
+                        csv_path = f"{args.output}_{mech}_data.csv"
+                    else:
+                        csv_path = f"{mech}_data.csv"
+                    
+                    data = plotter.calculate_mechanism_energies(mech, verbose=False)
+                    plotter.save_mechanism_data(data, csv_path)
+                    print(f"Raw data saved to {csv_path}")
         
         print("Plotting completed successfully!")
         
@@ -97,7 +128,10 @@ Examples:
     plot_parser.add_argument('--mechanism', help='Specific mechanism to plot (default: all)')
     plot_parser.add_argument('--temperature', type=float, default=298.15, help='Temperature in K (default: 298.15)')
     plot_parser.add_argument('--voltage', type=float, default=0.0, help='Voltage in V (default: 0.0)')
+    plot_parser.add_argument('--y-margin', type=float, default=None, help='Y-axis margin fraction (default: 0.15, increase if labels are clipped)')
+    plot_parser.add_argument('--ylim', nargs=2, type=float, metavar=('YMIN', 'YMAX'), help='Y-axis limits (e.g., --ylim -0.1 0.3)')
     plot_parser.add_argument('--output', '-o', help='Output file path')
+    plot_parser.add_argument('--save-data', action='store_true', help='Save raw data (reaction steps, energies) to CSV file')
     plot_parser.set_defaults(func=plot_command)
     
     # Search command

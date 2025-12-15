@@ -328,6 +328,7 @@ class FreeEnergyDiagramPlotter:
                       show_voltage_text: bool = False,
                       zorder: int = 2,
                       line_alpha: float = 1.0,
+                      ylim: Optional[tuple] = None,
                       save_path: Optional[str] = None) -> plt.Figure:
         """
         Plot free energy diagram for a mechanism
@@ -362,6 +363,7 @@ class FreeEnergyDiagramPlotter:
             show_voltage_text: Whether to show voltage text in plot (default: False)
             zorder: Drawing order (higher values drawn on top, default: 2)
             line_alpha: Alpha transparency for lines (0-1, default: 1.0)
+            ylim: Y-axis limits as tuple (ymin, ymax). If None, automatically calculated.
         
         Returns:
             Matplotlib figure object
@@ -537,28 +539,38 @@ class FreeEnergyDiagramPlotter:
                 ax.axvline(x=x_grid, color='gray', linestyle=':', linewidth=1, alpha=0.5, zorder=0)
         
         # Set y-axis limits with margin to prevent label clipping
-        # Calculate the actual min/max including label positions
-        y_min_data = min(states)
-        y_max_data = max(states)
-        y_range = y_max_data - y_min_data
-        
-        if show_labels:
-            # Calculate where labels actually appear
-            y_offset_up = y_range * 0.015
-            y_offset_down = -y_range * 0.02  # negative because it's below
-            text_height = y_range * 0.03  # approximate text height
-            
-            # Find the actual min and max y positions including labels
-            y_min_with_labels = y_min_data + y_offset_down - text_height/2
-            y_max_with_labels = y_max_data + y_offset_up + text_height/2
-            
-            # Add base margin
-            y_margin = y_range * y_margin_fraction
-            ax.set_ylim(y_min_with_labels - y_margin, y_max_with_labels + y_margin)
+        if ylim is not None:
+            # Use user-specified ylim
+            ax.set_ylim(ylim[0], ylim[1])
         else:
-            # No labels, just use data range with margin
-            y_margin = y_range * y_margin_fraction
-            ax.set_ylim(y_min_data - y_margin, y_max_data + y_margin)
+            # Calculate the actual min/max including label positions and barriers (TS)
+            y_min_data = min(states)
+            y_max_data = max(states)
+            
+            # Include barriers (transition states) in max calculation
+            valid_barriers = [b for b in barriers if b is not None]
+            if valid_barriers:
+                y_max_data = max(y_max_data, max(valid_barriers))
+            
+            y_range = y_max_data - y_min_data
+            
+            if show_labels:
+                # Calculate where labels actually appear
+                y_offset_up = y_range * 0.015
+                y_offset_down = -y_range * 0.02  # negative because it's below
+                text_height = y_range * 0.03  # approximate text height
+                
+                # Find the actual min and max y positions including labels
+                y_min_with_labels = y_min_data + y_offset_down - text_height/2
+                y_max_with_labels = y_max_data + y_offset_up + text_height/2
+                
+                # Add base margin
+                y_margin = y_range * y_margin_fraction
+                ax.set_ylim(y_min_with_labels - y_margin, y_max_with_labels + y_margin)
+            else:
+                # No labels, just use data range with margin
+                y_margin = y_range * y_margin_fraction
+                ax.set_ylim(y_min_data - y_margin, y_max_data + y_margin)
         
         # Add label to legend if provided (even if show_legend=False)
         # This allows external functions to collect labels and show legend later
@@ -1134,6 +1146,63 @@ class FreeEnergyDiagramPlotter:
         
         plt.tight_layout()
         return fig
+    
+    def save_mechanism_data(self, data: Dict, csv_path: str) -> None:
+        """
+        Save mechanism raw data to CSV file
+        
+        Args:
+            data: Dictionary returned by calculate_mechanism_energies
+            csv_path: Path to save CSV file
+        """
+        # Extract data
+        mechanism_name = data['mechanism_name']
+        states = data['states']
+        labels = data['labels']
+        delta_G_values = data.get('delta_G_values', [])
+        Ga_values = data.get('Ga_values', [])
+        n_electrons = data['n_electrons']
+        is_electrochemical = data.get('is_electrochemical', [])
+        step_indices = data['step_indices']
+        
+        # Prepare data for CSV
+        rows = []
+        
+        # Initial state
+        rows.append({
+            'Step': 0,
+            'Reaction_Step': 'Initial',
+            'State': labels[0],
+            'n(H+ + e-)': n_electrons[0],
+            'G (eV)': round(states[0], 2),
+            'ΔG (eV)': 0.0,
+            'Ga (eV)': '',
+            'Electrochemical': '',
+            'Temperature (K)': data['temperature'],
+            'Voltage (V)': data['voltage']
+        })
+        
+        # Each reaction step
+        for i in range(len(delta_G_values)):
+            step_num = step_indices[i]
+            rxn_data = self.rxn_expressions[step_num]
+            
+            rows.append({
+                'Step': i + 1,
+                'Reaction_Step': rxn_data['equation'],
+                'State': labels[i + 1],
+                'n(H+ + e-)': n_electrons[i + 1],
+                'G (eV)': round(states[i + 1], 2),
+                'ΔG (eV)': round(delta_G_values[i], 2),
+                'Ga (eV)': round(Ga_values[i], 2) if Ga_values[i] is not None else '',
+                'Electrochemical': 'Yes' if is_electrochemical[i] else 'No',
+                'Temperature (K)': data['temperature'],
+                'Voltage (V)': data['voltage']
+            })
+        
+        # Create DataFrame and save
+        df = pd.DataFrame(rows)
+        df.to_csv(csv_path, index=False)
     
     def create_energy_table(self, 
                            mechanism_names: Optional[List[str]] = None,
