@@ -1415,6 +1415,7 @@ def compare_catalysts_mechanisms(
     
     # Track global y limits for consistent scaling
     all_y_values = []
+    all_barrier_values = []
     
     # Plot each subplot
     for idx in range(n_subplots):
@@ -1460,6 +1461,11 @@ def compare_catalysts_mechanisms(
                 # Collect y values for ylim
                 data = plotter.calculate_mechanism_energies(mech)
                 all_y_values.extend(data['states'])
+                
+                # Include barriers if showing them
+                if show_barriers and data.get('barriers'):
+                    valid_barriers = [b for b in data['barriers'] if b is not None]
+                    all_barrier_values.extend(valid_barriers)
             
             ax.set_title(f'{mech}', fontsize=fontsize_title, fontweight='bold')
             
@@ -1501,6 +1507,11 @@ def compare_catalysts_mechanisms(
                 # Collect y values for ylim
                 data = plotter.calculate_mechanism_energies(mech)
                 all_y_values.extend(data['states'])
+                
+                # Include barriers if showing them
+                if show_barriers and data.get('barriers'):
+                    valid_barriers = [b for b in data['barriers'] if b is not None]
+                    all_barrier_values.extend(valid_barriers)
             
             ax.set_title(f'{cat_label}', fontsize=fontsize_title, fontweight='bold')
         
@@ -1520,6 +1531,11 @@ def compare_catalysts_mechanisms(
     if all_y_values:
         y_min = min(all_y_values)
         y_max = max(all_y_values)
+        
+        # Include barriers in max calculation
+        if all_barrier_values:
+            y_max = max(y_max, max(all_barrier_values))
+        
         y_range = y_max - y_min
         
         if show_labels:

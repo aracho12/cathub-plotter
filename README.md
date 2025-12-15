@@ -33,7 +33,29 @@ pip install -e .[dev]
 
 ```bash
 # Plot free energy diagram from MKM file
-cathub-plotter plot --mkm-file config.yaml --input-file input.txt
+cathub-plotter plot --mkm-file config.yaml --input-file input.txt --mechanism HER_Heyrovsky
+
+# Plot for specific surface and facet (e.g., Cu(100))
+cathub-plotter plot --mkm-file config.yaml --input-file input.txt --surface Cu --facet 100 --mechanism CO2R_CO
+
+# Plot at different temperature and voltage
+cathub-plotter plot --mkm-file config.yaml --input-file input.txt -T 400 -U -0.5 --mechanism CO2R_CO
+
+# Compare mechanisms
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary mechanism --mechanisms HER_Heyrovsky,HER_Tafel \
+  --surface Cu --facet 100 -U -0.5
+
+# Compare voltages (voltage sweep)
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary voltage --voltages -1.0,-0.8,-0.6,-0.4,-0.2,0.0 \
+  --mechanism HER_Heyrovsky --surface Cu --facet 100
+
+# 2D comparison: mechanism vs voltage
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary mechanism,voltage \
+  --mechanisms HER_Heyrovsky,HER_Tafel --voltages -1.0,-0.5,0.0 \
+  --surface Cu --facet 100 --layout subplots
 
 # Search catalysis-hub and calculate free energies
 cathub-plotter search --reactants "CO_g,*" --products "CO*" --surface "Cu"
@@ -63,6 +85,148 @@ plotter.plot_mechanism('HER_Heyrovsky')
 streamlit run cathub_plotter/app.py
 ```
 
+## CLI Options
+
+### Plot Command
+
+```bash
+cathub-plotter plot [OPTIONS]
+
+Options:
+  --mkm-file PATH          Path to MKM/YAML file (required)
+  --input-file PATH        Path to input file with species data (required)
+  --mechanism TEXT         Specific mechanism to plot (default: all)
+  --surface TEXT           Surface name to filter (e.g., Cu)
+  --facet TEXT             Facet name to filter (e.g., 100)
+  -T, --temperature FLOAT  Temperature in K (default: 298.15)
+  -U, --voltage FLOAT      Voltage in V vs RHE (default: 0.0)
+  --y-margin FLOAT         Y-axis margin fraction (default: 0.15)
+  --ylim YMIN YMAX         Y-axis limits (e.g., --ylim -0.1 0.3)
+  -o, --output PATH        Output file path
+  --save-data              Save raw data to CSV file
+```
+
+**Examples:**
+
+```bash
+# Plot HER mechanism at standard conditions
+cathub-plotter plot --mkm-file config.yaml --input-file input.txt --mechanism HER_Heyrovsky
+
+# Plot CO2R mechanism for Cu(100) at -0.5 V vs RHE and 400 K
+cathub-plotter plot --mkm-file config.yaml --input-file input.txt \
+  --surface Cu --facet 100 --mechanism CO2R_CO -U -0.5 -T 400 -o output.png
+
+# Save raw data along with the plot
+cathub-plotter plot --mkm-file config.yaml --input-file input.txt \
+  --mechanism HER_Heyrovsky --save-data -o her_diagram.png
+```
+
+### Compare Command
+
+Compare free energy diagrams across different conditions (mechanisms, temperatures, voltages, surfaces, facets).
+
+```bash
+cathub-plotter compare [OPTIONS]
+
+Options:
+  --mkm-file PATH          Path to MKM/YAML file (required)
+  --input-file PATH        Path to input file with species data (required)
+  --vary TEXT              Parameter(s) to vary (required)
+                          Single: mechanism, temperature, voltage, surface, facet
+                          2D: "mechanism,voltage", "surface,facet", etc.
+  
+  # Values for varying parameters
+  --mechanisms TEXT        Comma-separated mechanism names
+  --temperatures TEXT      Comma-separated temperatures in K
+  --voltages TEXT          Comma-separated voltages in V
+  --surfaces TEXT          Comma-separated surface names
+  --facets TEXT            Comma-separated facet names
+  
+  # Fixed conditions
+  --mechanism TEXT         Mechanism (when not varying)
+  --surface TEXT           Surface (when not varying)
+  --facet TEXT             Facet (when not varying)
+  -T, --temperature FLOAT  Temperature in K (when not varying, default: 298.15)
+  -U, --voltage FLOAT      Voltage in V (when not varying, default: 0.0)
+  
+  # Plot options
+  --layout {subplots,overlay}  Layout for 2D comparison (default: subplots)
+  --colors TEXT            Comma-separated colors
+  --labels TEXT            Comma-separated custom labels
+  --show-barriers          Show activation barriers
+  --show-labels            Show state labels
+  --legend-position TEXT   Legend position (default: best)
+  -o, --output PATH        Output file path
+  --save-data              Save raw comparison data to CSV file
+```
+
+**1D Comparison Examples:**
+
+```bash
+# Compare different mechanisms
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary mechanism \
+  --mechanisms HER_Heyrovsky,HER_Tafel \
+  --surface Cu --facet 100 -T 298.15 -U -0.5 \
+  --show-barriers -o mechanism_comparison.png
+
+# Voltage sweep (very useful for electrochemistry!)
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary voltage \
+  --voltages -1.0,-0.8,-0.6,-0.4,-0.2,0.0 \
+  --mechanism HER_Heyrovsky --surface Cu --facet 100 -T 298.15 \
+  --show-barriers -o voltage_sweep.png --save-data
+
+# Temperature dependence
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary temperature \
+  --temperatures 298.15,400,500,600 \
+  --mechanism CO2R_CO --surface Cu --facet 100 -U -0.5 \
+  -o temperature_comparison.png
+
+# Metal screening
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary surface \
+  --surfaces Cu,Ag,Au,Pt \
+  --mechanism CO2R_CO --facet 100 -T 298.15 -U -0.5 \
+  -o metal_screening.png
+
+# Facet comparison
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary facet \
+  --facets 100,111,211 \
+  --mechanism CO2R_CO --surface Cu -T 298.15 -U -0.5 \
+  -o facet_comparison.png
+```
+
+**2D Comparison Examples:**
+
+```bash
+# Mechanism vs Voltage (subplots layout)
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary mechanism,voltage \
+  --mechanisms HER_Heyrovsky,HER_Tafel \
+  --voltages -1.0,-0.5,0.0 \
+  --surface Cu --facet 100 -T 298.15 \
+  --layout subplots --show-barriers -o mech_vs_voltage.png --save-data
+
+# Surface vs Temperature (overlay layout)
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary surface,temperature \
+  --surfaces Cu,Ag,Au \
+  --temperatures 298.15,400,500 \
+  --mechanism CO2R_CO --facet 100 -U -0.5 \
+  --layout overlay -o surface_vs_temp.png
+
+# Voltage vs Temperature (subplots)
+cathub-plotter compare --mkm-file config.yaml --input-file input.txt \
+  --vary voltage,temperature \
+  --voltages -1.0,-0.5,0.0 \
+  --temperatures 298.15,400,500 \
+  --mechanism HER_Heyrovsky --surface Cu --facet 100 \
+  --layout subplots -o voltage_vs_temp.png
+```
+
 ## Usage Examples
 
 ### 1. Free Energy Diagram from MKM File
@@ -74,11 +238,19 @@ from cathub_plotter import FreeEnergyDiagramPlotter
 plotter = FreeEnergyDiagramPlotter(
     mkm_file='examples/config.yaml',
     input_file='examples/input.txt',
-    temperature=298.15
+    temperature=298.15,
+    voltage=-0.5  # Voltage in V vs RHE
 )
 
 # Plot a specific mechanism
 plotter.plot_mechanism('HER_Heyrovsky', save_path='her_diagram.png')
+
+# Compare different voltages
+plotter.compare_voltages(
+    'HER_Heyrovsky',
+    voltages=[-1.0, -0.8, -0.6, -0.4, -0.2, 0.0],
+    show_barriers=True
+)
 ```
 
 ### 2. Search Catalysis-Hub Database
