@@ -1,14 +1,15 @@
 """
 State Energy Calculator
-Read formation energies and frequencies from input.txt and calculate free energies for states
+Read formation energies and frequencies from input file and calculate free energies for states
 """
 from typing import List, Dict, Optional
 import pandas as pd
+import os
 from ..utils.thermodynamics import calculate_thermo_correction
 
 class InputDataParser:
     """
-    Parse input.txt file to extract species data
+    Parse input file to extract species data
     """
     
     def __init__(self, input_file: str = 'input.txt'):
@@ -16,19 +17,31 @@ class InputDataParser:
         Initialize parser with input file path
         
         Args:
-            input_file: Path to input.txt file
+            input_file: Path to input file (.txt, .xlsx, .xls, .csv)
         """
         self.input_file = input_file
         self.data = self._parse_input_file()
     
     def _parse_input_file(self) -> pd.DataFrame:
         """
-        Parse input.txt file into pandas DataFrame
+        Parse input file into pandas DataFrame
         
         Returns:
             DataFrame with species data
         """
-        df = pd.read_csv(self.input_file, sep='\t')
+        # Determine file type and read accordingly
+        _, ext = os.path.splitext(self.input_file)
+        
+        if ext.lower() in ['.xlsx', '.xls']:
+            # Read Excel file
+            df = pd.read_excel(self.input_file)
+        elif ext.lower() == '.csv':
+            # Read CSV file
+            df = pd.read_csv(self.input_file)
+        else:
+            # Read tab-separated text file
+            df = pd.read_csv(self.input_file, sep='\t')
+        
         return df
     
     def get_species_data(self, species: str) -> Optional[Dict]:

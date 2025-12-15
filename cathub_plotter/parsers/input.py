@@ -3,6 +3,7 @@ Input File Parser for species data
 """
 import pandas as pd
 import ast
+import os
 from typing import Dict, Any
 
 class InputFileParser:
@@ -11,16 +12,26 @@ class InputFileParser:
     @staticmethod
     def parse_file(filename: str) -> Dict[str, Dict[str, Any]]:
         """
-        Reads input.txt and converts it into a dictionary keyed by species.
+        Reads input file (text or Excel) and converts it into a dictionary keyed by species.
 
         Args:
-            filename: The path to input.txt.
+            filename: The path to input file (.txt, .xlsx, .xls, .csv).
 
         Returns:
             dict: {species_name: {status, formation_energy, frequencies, ...}}
         """
-        # Read tab-separated file
-        df = pd.read_csv(filename, sep='\t')
+        # Determine file type and read accordingly
+        _, ext = os.path.splitext(filename)
+        
+        if ext.lower() in ['.xlsx', '.xls']:
+            # Read Excel file
+            df = pd.read_excel(filename)
+        elif ext.lower() == '.csv':
+            # Read CSV file
+            df = pd.read_csv(filename)
+        else:
+            # Read tab-separated text file
+            df = pd.read_csv(filename, sep='\t')
 
         species_data = {}
 
