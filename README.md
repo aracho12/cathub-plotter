@@ -36,10 +36,10 @@ pip install -e .[dev]
 cathub-plotter plot --mkm-file config.yaml --input-file input.txt --mechanism HER_Heyrovsky
 
 # Plot for specific surface and facet (e.g., Cu(100))
-cathub-plotter plot --mkm-file config.yaml --input-file input.txt --surface Cu --facet 100 --mechanism CO2R_CO
+cathub-plotter plot --mkm-file config.yaml --input-file input.txt --surface Cu --facet 100 --mechanism CO_via_COOH
 
 # Plot at different temperature and voltage
-cathub-plotter plot --mkm-file config.yaml --input-file input.txt -T 400 -U -0.5 --mechanism CO2R_CO
+cathub-plotter plot --mkm-file config.yaml --input-file input.txt -T 400 -U -0.5 --mechanism CO_via_COOH
 
 # Compare mechanisms
 cathub-plotter compare --mkm-file config.yaml --input-file input.txt \

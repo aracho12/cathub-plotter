@@ -408,9 +408,13 @@ def _compare_1d(args, vary_param: str):
         for mech in values:
             plotter_data.append((mech, plotter, mech))
         
+        # Prepare figsize
+        figsize = tuple(args.figsize) if hasattr(args, 'figsize') and args.figsize else None
+        
         fig = plotter.compare_mechanisms(
             mechanism_names=values,
             colors=colors,
+            figsize=figsize,
             show_barriers=args.show_barriers,
             show_labels=args.show_labels,
             legend_position=args.legend_position
@@ -438,10 +442,14 @@ def _compare_1d(args, vary_param: str):
             voltage=values[0]  # Will be updated in compare_voltages
         )
         
+        # Prepare figsize
+        figsize = tuple(args.figsize) if hasattr(args, 'figsize') and args.figsize else None
+        
         fig = plotter.compare_voltages(
             mechanism_name=base_mechanism,
             voltages=values,
             colors=colors,
+            figsize=figsize,
             show_barriers=args.show_barriers,
             show_labels=args.show_labels,
             legend_position=args.legend_position
@@ -547,7 +555,13 @@ def _compare_2d_subplots(args, vary_param1: str, values1: list, vary_param2: str
     n_cols = min(2, n_subplots)
     n_rows = (n_subplots + n_cols - 1) // n_cols
     
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 6*n_rows))
+    # Determine figsize
+    if hasattr(args, 'figsize') and args.figsize:
+        figsize = tuple(args.figsize)
+    else:
+        figsize = (8*n_cols, 6*n_rows)
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
     if n_subplots == 1:
         axes = [axes]
     else:
@@ -664,7 +678,13 @@ def _compare_2d_overlay(args, vary_param1: str, values1: list, vary_param2: str,
     import matplotlib.pyplot as plt
     import numpy as np
     
-    fig, ax = plt.subplots(figsize=(10, 8))
+    # Determine figsize
+    if hasattr(args, 'figsize') and args.figsize:
+        figsize = tuple(args.figsize)
+    else:
+        figsize = (10, 8)
+    
+    fig, ax = plt.subplots(figsize=figsize)
     
     # Generate colors: use 2D colormap or distinct colors
     n_total = len(values1) * len(values2)
@@ -945,6 +965,11 @@ Examples:
   cathub-plotter compare --mkm-file config.yaml --input-file input.txt --vary surface \\
     --surfaces Cu,Ag,Au --mechanism CO2R_CO --facet 100 -T 298.15 -U -0.5
   
+  # Compare with custom figure size
+  cathub-plotter compare --mkm-file config.yaml --input-file input.txt --vary surface,temperature \\
+    --surfaces Cu,Ni --temperatures 298.15,400,500 --mechanism CO_via_COOH --facet 100 -U -0.5 \\
+    --layout overlay --figsize 12 8 -o surface_vs_temp.png --show-labels
+  
   # Search catalysis-hub for CO adsorption reactions
   cathub-plotter search --reactants "CO_g,*" --products "CO*" --surface "Cu" --facet "111"
         """
@@ -996,6 +1021,8 @@ Examples:
     # Plot options
     compare_parser.add_argument('--layout', choices=['subplots', 'overlay'], default='subplots',
                                help='Layout for 2D comparison (default: subplots)')
+    compare_parser.add_argument('--figsize', nargs=2, type=float, metavar=('WIDTH', 'HEIGHT'),
+                               help='Figure size in inches (e.g., --figsize 12 8). If not specified, size is calculated automatically.')
     compare_parser.add_argument('--colors', help='Comma-separated colors (hex or named colors)')
     compare_parser.add_argument('--labels', help='Comma-separated custom labels')
     compare_parser.add_argument('--show-barriers', action='store_true', help='Show activation barriers')
