@@ -17,7 +17,8 @@ class MKMEnergyCalculator:
                  input_file: str = 'input.txt',
                  temperature: float = 298.15,
                  voltage: float = 0.0,
-                 fugacity_dict: Dict = None):
+                 fugacity_dict: Dict = None,
+                 use_gibbs_energy: bool = False):
         """
         Initialize calculator
         
@@ -26,12 +27,14 @@ class MKMEnergyCalculator:
             temperature: Temperature in K
             voltage: Voltage in V
             fugacity_dict: Dictionary of fugacities for gas species
+            use_gibbs_energy: If True, formation_energy is treated as Gibbs free energy at U=0V
         """
         self.state_calculator = StateEnergyCalculator(
             input_file=input_file,
             temperature=temperature,
             voltage=voltage,
-            fugacity_dict=fugacity_dict
+            fugacity_dict=fugacity_dict,
+            use_gibbs_energy=use_gibbs_energy
         )
         self.temperature = temperature
         self.voltage = voltage

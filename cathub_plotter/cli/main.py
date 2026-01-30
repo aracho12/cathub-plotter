@@ -91,7 +91,8 @@ def plot_command(args):
             mkm_file=args.mkm_file,
             input_file=input_file,
             temperature=args.temperature,
-            voltage=args.voltage
+            voltage=args.voltage,
+            use_gibbs_energy=args.use_gibbs if hasattr(args, 'use_gibbs') else False
         )
         
         # Prepare plot_mechanism kwargs
@@ -100,6 +101,8 @@ def plot_command(args):
             plot_kwargs['y_margin_fraction'] = args.y_margin
         if hasattr(args, 'ylim') and args.ylim is not None:
             plot_kwargs['ylim'] = args.ylim
+        if hasattr(args, 'x_axis') and args.x_axis is not None:
+            plot_kwargs['x_axis_mode'] = args.x_axis
         
         if args.mechanism:
             plotter.plot_mechanism(args.mechanism, save_path=args.output, **plot_kwargs)
@@ -114,7 +117,8 @@ def plot_command(args):
                 
                 # Calculate and save data
                 data = plotter.calculate_mechanism_energies(args.mechanism, verbose=False)
-                plotter.save_mechanism_data(data, csv_path)
+                x_axis_mode = args.x_axis if hasattr(args, 'x_axis') else 'step'
+                plotter.save_mechanism_data(data, csv_path, x_axis_mode=x_axis_mode)
                 print(f"Raw data saved to {csv_path}")
         else:
             # Plot all mechanisms
@@ -131,7 +135,8 @@ def plot_command(args):
                         csv_path = f"{mech}_data.csv"
                     
                     data = plotter.calculate_mechanism_energies(mech, verbose=False)
-                    plotter.save_mechanism_data(data, csv_path)
+                    x_axis_mode = args.x_axis if hasattr(args, 'x_axis') else 'step'
+                    plotter.save_mechanism_data(data, csv_path, x_axis_mode=x_axis_mode)
                     print(f"Raw data saved to {csv_path}")
         
         print("Plotting completed successfully!")
@@ -401,7 +406,8 @@ def _compare_1d(args, vary_param: str):
             mkm_file=args.mkm_file,
             input_file=input_file,
             temperature=args.temperature,
-            voltage=args.voltage
+            voltage=args.voltage,
+            use_gibbs_energy=args.use_gibbs if hasattr(args, 'use_gibbs') else False
         )
         
         # Collect data for saving
@@ -417,7 +423,8 @@ def _compare_1d(args, vary_param: str):
             figsize=figsize,
             show_barriers=args.show_barriers,
             show_labels=args.show_labels,
-            legend_position=args.legend_position
+            legend_position=args.legend_position,
+            x_axis_mode=args.x_axis if hasattr(args, 'x_axis') else 'step'
         )
     
     elif vary_param == 'voltage':
@@ -430,7 +437,8 @@ def _compare_1d(args, vary_param: str):
                 mkm_file=args.mkm_file,
                 input_file=input_file,
                 temperature=args.temperature,
-                voltage=voltage
+                voltage=voltage,
+                use_gibbs_energy=args.use_gibbs if hasattr(args, 'use_gibbs') else False
             )
             plotter_data.append((voltage, plotter_v, base_mechanism))
         
@@ -439,7 +447,8 @@ def _compare_1d(args, vary_param: str):
             mkm_file=args.mkm_file,
             input_file=input_file,
             temperature=args.temperature,
-            voltage=values[0]  # Will be updated in compare_voltages
+            voltage=values[0],  # Will be updated in compare_voltages
+            use_gibbs_energy=args.use_gibbs if hasattr(args, 'use_gibbs') else False
         )
         
         # Prepare figsize
@@ -452,7 +461,8 @@ def _compare_1d(args, vary_param: str):
             figsize=figsize,
             show_barriers=args.show_barriers,
             show_labels=args.show_labels,
-            legend_position=args.legend_position
+            legend_position=args.legend_position,
+            x_axis_mode=args.x_axis if hasattr(args, 'x_axis') else 'step'
         )
     
     elif vary_param in ['temperature', 'surface', 'facet']:
@@ -484,7 +494,8 @@ def _compare_1d(args, vary_param: str):
                 mkm_file=args.mkm_file,
                 input_file=input_file,
                 temperature=temp,
-                voltage=args.voltage
+                voltage=args.voltage,
+                use_gibbs_energy=args.use_gibbs if hasattr(args, 'use_gibbs') else False
             )
             plotters[label] = plotter
             
@@ -507,7 +518,8 @@ def _compare_1d(args, vary_param: str):
             show_barriers=args.show_barriers,
             show_labels=args.show_labels,
             show_legend=True,
-            legend_position=args.legend_position
+            legend_position=args.legend_position,
+            x_axis_mode=args.x_axis if hasattr(args, 'x_axis') else 'step'
         )
     
     # Save figure
@@ -854,7 +866,8 @@ def _create_plotter_for_conditions(args, vary_param1: str, val1, vary_param2: st
         mkm_file=args.mkm_file,
         input_file=input_file,
         temperature=conditions['temperature'],
-        voltage=conditions['voltage']
+        voltage=conditions['voltage'],
+        use_gibbs_energy=args.use_gibbs if hasattr(args, 'use_gibbs') else False
     )
     
     return plotter
@@ -988,6 +1001,8 @@ Examples:
     plot_parser.add_argument('--voltage', '-U', type=float, default=0.0, help='Voltage in V vs RHE (default: 0.0)')
     plot_parser.add_argument('--y-margin', type=float, default=None, help='Y-axis margin fraction (default: 0.15, increase if labels are clipped)')
     plot_parser.add_argument('--ylim', nargs=2, type=float, metavar=('YMIN', 'YMAX'), help='Y-axis limits (e.g., --ylim -0.1 0.3)')
+    plot_parser.add_argument('--x-axis', choices=['step', 'electron'], default='step', help='X-axis mode: "step" for reaction coordinate (default) or "electron" for n(H+ + e-)')
+    plot_parser.add_argument('--use-gibbs', action='store_true', help='Treat formation_energy as Gibbs free energy at U=0V (no thermo corrections, only voltage correction)')
     plot_parser.add_argument('--output', '-o', help='Output file path')
     plot_parser.add_argument('--save-data', action='store_true', help='Save raw data (reaction steps, energies) to CSV file')
     plot_parser.set_defaults(func=plot_command)
@@ -1029,6 +1044,10 @@ Examples:
     compare_parser.add_argument('--show-labels', action='store_true', help='Show state labels')
     compare_parser.add_argument('--legend-position', default='best', 
                                help='Legend position (default: best)')
+    compare_parser.add_argument('--x-axis', choices=['step', 'electron'], default='step', 
+                               help='X-axis mode: "step" for reaction coordinate (default) or "electron" for n(H+ + e-)')
+    compare_parser.add_argument('--use-gibbs', action='store_true', 
+                               help='Treat formation_energy as Gibbs free energy at U=0V (no thermo corrections, only voltage correction)')
     compare_parser.add_argument('--output', '-o', help='Output file path')
     compare_parser.add_argument('--save-data', action='store_true', 
                                help='Save raw comparison data (energies for all conditions) to CSV file')

@@ -129,7 +129,8 @@ class StateEnergyCalculator:
     
     def __init__(self, input_file: str = 'input.txt', 
                  temperature: float = 298.15, voltage: float = 0.0,
-                 fugacity_dict: Dict = None):
+                 fugacity_dict: Dict = None,
+                 use_gibbs_energy: bool = False):
         """
         Initialize calculator
         
@@ -138,11 +139,14 @@ class StateEnergyCalculator:
             temperature: Temperature in K
             voltage: Voltage in V (for electrochemical reactions)
             fugacity_dict: Dictionary of fugacities for gas species {species: Pa}
+            use_gibbs_energy: If True, formation_energy is treated as Gibbs free energy at U=0V
+                            (no thermodynamic corrections applied, only voltage correction)
         """
         self.parser = InputDataParser(input_file)
         self.temperature = temperature
         self.voltage = voltage
         self.fugacity_dict = fugacity_dict or {}
+        self.use_gibbs_energy = use_gibbs_energy
         
         # Default fugacity values
         self.default_fugacity_dict = {
@@ -162,7 +166,12 @@ class StateEnergyCalculator:
         """
         Calculate free energy for a single species
         
-        G = E_form + F_thermo + E_solv
+        If use_gibbs_energy=False (default):
+            G = E_form + F_thermo + E_solv
+        
+        If use_gibbs_energy=True:
+            G = G_0V + voltage_correction
+            (formation_energy is treated as Gibbs energy at U=0V, no thermo corrections)
         
         For transition states in electrochemical reactions:
         G_TS includes voltage-dependent correction based on beta
@@ -195,61 +204,82 @@ class StateEnergyCalculator:
         E_form = species_data['formation_energy']
         frequencies = species_data['frequencies']
         
-        # Get fugacity
-        fugacity = self.fugacity_dict.get(species, None)
-        if fugacity is None:
-            fugacity = self.default_fugacity_dict.get(species, 1e5)
-        
-        # Special cases for H_g and ele_g
-        if species == 'H_g':
-            # H_g is half of H2_g
-            # Important: Use H2_g frequencies, not H_g frequencies!
-            h2_species_data = self.parser.get_species_data('H2_g')
-            if h2_species_data is not None:
-                h2_frequencies = h2_species_data['frequencies']
-            else:
-                h2_frequencies = []
-            
-            thermo = calculate_thermo_correction(
-                species='H2_g',
-                temperature=self.temperature,
-                fugacity=fugacity,
-                frequencies=h2_frequencies
-            )
-            F_thermo = thermo['F'] / 2.0
-            E_solv = 0.0
-        elif species == 'ele_g':
-            # Electron with electrochemical potential
-            thermo = calculate_thermo_correction(
-                species='ele_g',
-                temperature=self.temperature,
-                fugacity=1e5,
-                frequencies=[]
-            )
-            F_thermo = -self.voltage
-            E_solv = 0.0
-        else:
-            # Normal species
-            thermo = calculate_thermo_correction(
-                species=species,
-                temperature=self.temperature,
-                fugacity=fugacity,
-                frequencies=frequencies
-            )
-            F_thermo = thermo['F']
-            
-            # Solvation energy from input file
-            E_solv_raw = species_data.get('solvation_energy', 0.0)
-            if pd.isna(E_solv_raw) or E_solv_raw == '':
+        # If using Gibbs energy mode, skip thermodynamic corrections
+        if self.use_gibbs_energy:
+            # formation_energy is already Gibbs free energy at U=0V
+            # Only apply voltage correction for electrons
+            if species == 'ele_g':
+                # Electron with electrochemical potential
+                F_thermo = -self.voltage
+                E_solv = 0.0
+            elif species == 'H_g':
+                # H_g: half of H2_g Gibbs energy + voltage correction
+                # Since H_g comes with ele_g in reactions, voltage is already in ele_g
+                F_thermo = 0.0
                 E_solv = 0.0
             else:
-                # Parse solvation energy (might be "0.00 eV" format)
-                if isinstance(E_solv_raw, str):
-                    E_solv = float(E_solv_raw.split()[0])
+                # No thermodynamic correction needed
+                F_thermo = 0.0
+                E_solv = 0.0
+            
+            G = E_form + F_thermo + E_solv
+        else:
+            # Original mode: calculate thermodynamic corrections
+            # Get fugacity
+            fugacity = self.fugacity_dict.get(species, None)
+            if fugacity is None:
+                fugacity = self.default_fugacity_dict.get(species, 1e5)
+            
+            # Special cases for H_g and ele_g
+            if species == 'H_g':
+                # H_g is half of H2_g
+                # Important: Use H2_g frequencies, not H_g frequencies!
+                h2_species_data = self.parser.get_species_data('H2_g')
+                if h2_species_data is not None:
+                    h2_frequencies = h2_species_data['frequencies']
                 else:
-                    E_solv = float(E_solv_raw)
-        
-        G = E_form + F_thermo + E_solv
+                    h2_frequencies = []
+                
+                thermo = calculate_thermo_correction(
+                    species='H2_g',
+                    temperature=self.temperature,
+                    fugacity=fugacity,
+                    frequencies=h2_frequencies
+                )
+                F_thermo = thermo['F'] / 2.0
+                E_solv = 0.0
+            elif species == 'ele_g':
+                # Electron with electrochemical potential
+                thermo = calculate_thermo_correction(
+                    species='ele_g',
+                    temperature=self.temperature,
+                    fugacity=1e5,
+                    frequencies=[]
+                )
+                F_thermo = -self.voltage
+                E_solv = 0.0
+            else:
+                # Normal species
+                thermo = calculate_thermo_correction(
+                    species=species,
+                    temperature=self.temperature,
+                    fugacity=fugacity,
+                    frequencies=frequencies
+                )
+                F_thermo = thermo['F']
+                
+                # Solvation energy from input file
+                E_solv_raw = species_data.get('solvation_energy', 0.0)
+                if pd.isna(E_solv_raw) or E_solv_raw == '':
+                    E_solv = 0.0
+                else:
+                    # Parse solvation energy (might be "0.00 eV" format)
+                    if isinstance(E_solv_raw, str):
+                        E_solv = float(E_solv_raw.split()[0])
+                    else:
+                        E_solv = float(E_solv_raw)
+            
+            G = E_form + F_thermo + E_solv
         
         # Apply voltage-dependent correction for electrochemical transition states
         # Following CatMAP's simple_electrochemical mode:
@@ -278,9 +308,14 @@ class StateEnergyCalculator:
         
         if verbose:
             print(f"Species: {species}")
-            print(f"  E_form: {E_form:.4f} eV")
-            print(f"  F_thermo: {F_thermo:.4f} eV")
-            print(f"  E_solv: {E_solv:.4f} eV")
+            if self.use_gibbs_energy:
+                print(f"  G(U=0V): {E_form:.4f} eV")
+                if F_thermo != 0:
+                    print(f"  V_corr: {F_thermo:.4f} eV")
+            else:
+                print(f"  E_form: {E_form:.4f} eV")
+                print(f"  F_thermo: {F_thermo:.4f} eV")
+                print(f"  E_solv: {E_solv:.4f} eV")
             if voltage_correction != 0:
                 print(f"  V_corr (TS): {voltage_correction:.4f} eV")
             print(f"  G: {G:.4f} eV")

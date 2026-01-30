@@ -43,7 +43,8 @@ class FreeEnergyDiagramPlotter:
                  mkm_file: str,
                  input_file: str = 'input.txt',
                  temperature: float = 298.15,
-                 voltage: float = 0.0):
+                 voltage: float = 0.0,
+                 use_gibbs_energy: bool = False):
         """
         Initialize plotter
         
@@ -52,16 +53,20 @@ class FreeEnergyDiagramPlotter:
             input_file: Path to input.txt with species data
             temperature: Temperature in K
             voltage: Voltage in V
+            use_gibbs_energy: If True, formation_energy in input.txt is treated as Gibbs free energy at U=0V
+                            (no thermodynamic corrections applied, only voltage correction)
         """
         self.mkm_file = mkm_file
         self.mkm_data = MKMFileParser.parse_file(mkm_file)
         self.calculator = MKMEnergyCalculator(
             input_file=input_file,
             temperature=temperature,
-            voltage=voltage
+            voltage=voltage,
+            use_gibbs_energy=use_gibbs_energy
         )
         self.temperature = temperature
         self.voltage = voltage
+        self.use_gibbs_energy = use_gibbs_energy
         
         # Parse data
         self.rxn_expressions = self.mkm_data['rxn_expressions']
@@ -133,9 +138,11 @@ class FreeEnergyDiagramPlotter:
             cumulative_energy += delta_G
             
             # Check if electrochemical and count electrons
-            # Count all electrons (ele_g or pe_g) in reactants
-            electron_count = sum(1 for r in rxn_data['reactants'] if r in ['ele_g', 'pe_g'])
-            has_electron = electron_count > 0
+            # Count all electrons (ele_g or pe_g) in reactants OR products
+            electron_count_reactants = sum(1 for r in rxn_data['reactants'] if r in ['ele_g', 'pe_g'])
+            electron_count_products = sum(1 for p in rxn_data['products'] if p in ['ele_g', 'pe_g'])
+            electron_count = electron_count_reactants  # For cumulative count, use reactants
+            has_electron = (electron_count_reactants > 0) or (electron_count_products > 0)
             is_electrochemical.append(has_electron)
             
             # Update cumulative electron count with actual number of electrons
@@ -329,7 +336,9 @@ class FreeEnergyDiagramPlotter:
                       zorder: int = 2,
                       line_alpha: float = 1.0,
                       ylim: Optional[tuple] = None,
-                      save_path: Optional[str] = None) -> plt.Figure:
+                      x_axis_mode: str = 'step',
+                      save_path: Optional[str] = None,
+                      save_data: bool = True) -> plt.Figure:
         """
         Plot free energy diagram for a mechanism
         
@@ -364,23 +373,14 @@ class FreeEnergyDiagramPlotter:
             zorder: Drawing order (higher values drawn on top, default: 2)
             line_alpha: Alpha transparency for lines (0-1, default: 1.0)
             ylim: Y-axis limits as tuple (ymin, ymax). If None, automatically calculated.
+            x_axis_mode: X-axis mode - 'step' for reaction coordinate (default) or 'electron' for n(H+ + e-)
+            save_data: Whether to save raw data to CSV file (default: True)
         
         Returns:
             Matplotlib figure object
         """
         # Calculate energies
         data = self.calculate_mechanism_energies(mechanism_name, verbose=verbose)
-        
-        # Calculate dynamic figure width based on x-axis range
-        n_electrons = data['n_electrons']
-        x_range = max(n_electrons) - min(n_electrons)
-        dynamic_width = base_width + width_per_n * x_range
-        
-        # Create figure if needed
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(dynamic_width, height))
-        else:
-            fig = ax.get_figure()
         
         states = data['states']
         barriers = data['barriers']
@@ -400,23 +400,46 @@ class FreeEnergyDiagramPlotter:
         
         # Plot energy levels
         n_states = len(states)
-        x_base = np.array(n_electrons)  # Base n(H+ + e-) positions
         
-        # Calculate x offsets for states with same n_electrons
-        x_positions = self._calculate_x_offsets(x_base, states, offset_val=same_n_offset)
-        
-        # Calculate line widths for each state
-        # States in same-n transitions get bar_width_small, others get bar_width_large
-        line_widths = []
-        for i in range(n_states):
-            # Check if this state is part of a same-n transition
-            is_same_n_transition = False
-            if i < n_states - 1 and x_base[i] == x_base[i+1]:
-                is_same_n_transition = True  # A in A->B
-            elif i > 0 and x_base[i-1] == x_base[i]:
-                is_same_n_transition = True  # B in A->B
+        # Determine x-axis mode
+        if x_axis_mode == 'electron':
+            # Use n(H+ + e-) as x-axis
+            x_base = np.array(n_electrons)
+            # Calculate x offsets for states with same n_electrons
+            x_positions = self._calculate_x_offsets(x_base, states, offset_val=same_n_offset)
             
-            line_widths.append(bar_width_small if is_same_n_transition else bar_width_large)
+            # Calculate line widths for each state
+            # States in same-n transitions get bar_width_small, others get bar_width_large
+            line_widths = []
+            for i in range(n_states):
+                # Check if this state is part of a same-n transition
+                is_same_n_transition = False
+                if i < n_states - 1 and x_base[i] == x_base[i+1]:
+                    is_same_n_transition = True  # A in A->B
+                elif i > 0 and x_base[i-1] == x_base[i]:
+                    is_same_n_transition = True  # B in A->B
+                
+                line_widths.append(bar_width_small if is_same_n_transition else bar_width_large)
+            
+            # Calculate dynamic width based on electron range
+            x_range = max(n_electrons) - min(n_electrons)
+            dynamic_width = base_width + width_per_n * x_range
+        else:  # x_axis_mode == 'step' (default)
+            # Use mechanism step order as x-axis (0, 1, 2, 3, ...)
+            x_base = np.arange(n_states)
+            x_positions = x_base.astype(float)
+            # All states use the same line width
+            line_widths = [bar_width_large] * n_states
+            
+            # Calculate dynamic width based on number of steps
+            n_steps = len(states) - 1
+            dynamic_width = base_width + width_per_n * n_steps
+        
+        # Create figure if needed
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(dynamic_width, height))
+        else:
+            fig = ax.get_figure()
         
         # Draw horizontal lines for each state
         for i in range(n_states):
@@ -520,23 +543,34 @@ class FreeEnergyDiagramPlotter:
                            fontsize=fontsize_label, rotation=0, color=color, alpha=line_alpha)
         
         # Formatting
-        ax.set_xlabel('n(H⁺ + e⁻)', fontsize=fontsize_axis)
+        if x_axis_mode == 'electron':
+            ax.set_xlabel('n(H⁺ + e⁻)', fontsize=fontsize_axis)
+            # Use unique n_electrons for ticks (without offsets)
+            unique_n = sorted(set(x_base))
+            ax.set_xticks(unique_n)
+            ax.set_xticklabels([f'{int(n)}' for n in unique_n])
+        else:  # x_axis_mode == 'step'
+            ax.set_xlabel('Reaction Coordinate', fontsize=fontsize_axis)
+            # Use step numbers for ticks
+            ax.set_xticks(x_base)
+            ax.set_xticklabels([f'{int(n)}' for n in x_base])
+        
         ax.set_ylabel('G (eV)', fontsize=fontsize_axis)
-        # Use unique n_electrons for ticks (without offsets)
-        unique_n = sorted(set(x_base))
-        ax.set_xticks(unique_n)
-        ax.set_xticklabels([f'{int(n)}' for n in unique_n])
         
         # Set tick label font sizes
         ax.tick_params(axis='both', which='major', labelsize=fontsize_ticks)
         
-        # Add vertical dotted grid lines at 0.5, 1.5, 2.5, ...
-        x_min = min(x_base)
-        x_max = max(x_base)
-        grid_positions = np.arange(0.5, x_max + 0.5, 1.0)
-        for x_grid in grid_positions:
-            if x_min <= x_grid <= x_max:
-                ax.axvline(x=x_grid, color='gray', linestyle=':', linewidth=1, alpha=0.5, zorder=0)
+        # Add horizontal line at y=0
+        ax.axhline(y=0, color='black', linestyle='-', linewidth=1, alpha=0.3, zorder=0)
+        
+        # Add vertical dotted grid lines between steps (at 0.5, 1.5, 2.5, ...)
+        if n_states > 1:
+            x_min = min(x_base)
+            x_max = max(x_base)
+            grid_positions = np.arange(0.5, x_max + 0.5, 1.0)
+            for x_grid in grid_positions:
+                if x_min <= x_grid <= x_max:
+                    ax.axvline(x=x_grid, color='gray', linestyle=':', linewidth=1, alpha=0.5, zorder=0)
         
         # Set y-axis limits with margin to prevent label clipping
         if ylim is not None:
@@ -597,13 +631,13 @@ class FreeEnergyDiagramPlotter:
         
         # Add voltage text inside the plot
         if show_voltage_text:
-            voltage_text = f'U = {self.voltage:.1f} V vs. RHE'
+            voltage_text = f'U = {self.voltage:.2f} V vs. RHE'
             ax.text(0.02, 0.98, voltage_text, transform=ax.transAxes,
                    fontsize=fontsize_ticks, verticalalignment='top',
                    bbox=dict(boxstyle='round,pad=0.5', facecolor='white', edgecolor='gray', alpha=0.8))
         
         # Title
-        title = f'{mechanism_name} at U={self.voltage:.1f} V vs RHE'
+        title = f'{mechanism_name} at U={self.voltage:.2f} V vs RHE'
         ax.set_title(title, fontsize=fontsize_title, fontweight='bold')
         
         plt.tight_layout()
@@ -612,6 +646,13 @@ class FreeEnergyDiagramPlotter:
         if save_path:
             fig.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"Plot saved to {save_path}")
+            
+            # Save raw data if requested
+            if save_data:
+                # Determine CSV filename from save_path
+                csv_path = save_path.rsplit('.', 1)[0] + '_data.csv'
+                self.save_mechanism_data(data, csv_path, x_axis_mode=x_axis_mode)
+                print(f"Raw data saved to {csv_path}")
         
         return fig
     
@@ -631,7 +672,8 @@ class FreeEnergyDiagramPlotter:
                         fontsize_title: int = 15,
                         fontsize_legend: int = 11,
                         fontsize_ticks: int = 12,
-                        y_margin_fraction: float = 0.15) -> plt.Figure:
+                        y_margin_fraction: float = 0.15,
+                        x_axis_mode: str = 'step') -> plt.Figure:
         """
         Compare free energy diagrams at different voltages
         
@@ -652,6 +694,7 @@ class FreeEnergyDiagramPlotter:
             fontsize_legend: Font size for legend
             fontsize_ticks: Font size for tick labels
             y_margin_fraction: Fraction of y-range to add as margin
+            x_axis_mode: X-axis mode - 'step' for reaction coordinate (default) or 'electron' for n(H+ + e-)
         
         Returns:
             Matplotlib figure object
@@ -668,9 +711,13 @@ class FreeEnergyDiagramPlotter:
         # Calculate dynamic figure size if not provided
         if figsize is None:
             data = self.calculate_mechanism_energies(mechanism_name, verbose=False)
-            n_electrons = data['n_electrons']
-            x_range = max(n_electrons) - min(n_electrons)
-            dynamic_width = base_width + width_per_n * x_range
+            if x_axis_mode == 'electron':
+                n_electrons = data['n_electrons']
+                x_range = max(n_electrons) - min(n_electrons)
+                dynamic_width = base_width + width_per_n * x_range
+            else:  # x_axis_mode == 'step'
+                n_steps = len(data['states']) - 1
+                dynamic_width = base_width + width_per_n * n_steps
             figsize = (dynamic_width, height)
         
         fig, ax = plt.subplots(figsize=figsize)
@@ -690,7 +737,7 @@ class FreeEnergyDiagramPlotter:
                 mechanism_name,
                 ax=ax,
                 color=color,
-                label=f'U = {voltage:.1f} V',
+                label=f'U = {voltage:.2f} V',
                 show_barriers=show_barriers,
                 show_labels=show_labels_here,  # Labels only once
                 show_legend=False,  # Will add custom legend later
@@ -702,7 +749,8 @@ class FreeEnergyDiagramPlotter:
                 fontsize_legend=fontsize_legend,
                 fontsize_ticks=fontsize_ticks,
                 y_margin_fraction=y_margin_fraction,
-                show_voltage_text=False  # Don't show voltage text when comparing multiple voltages
+                show_voltage_text=False,  # Don't show voltage text when comparing multiple voltages
+                x_axis_mode=x_axis_mode
             )
         
         # Add legend
@@ -715,7 +763,7 @@ class FreeEnergyDiagramPlotter:
                          ncol=min(len(voltages), 4), frameon=False)
             else:
                 ax.legend(fontsize=fontsize_legend, loc=legend_position, frameon=False)
-        ax.set_title(f'{mechanism_name} - Voltage Comparison\nT = {self.temperature:.1f} K',
+        ax.set_title(f'{mechanism_name} - Voltage Comparison\nT = {self.temperature:.2f} K',
                     fontsize=fontsize_title, fontweight='bold')
         
         plt.tight_layout()
@@ -772,7 +820,7 @@ class FreeEnergyDiagramPlotter:
                                  show_barriers, show_labels,
                                  bar_width_small=0.25, bar_width_large=0.5, same_n_offset=0.5,
                                  initial_label=None, fontsize_label=11, fontsize_axis=14,
-                                 fontsize_ticks=12, y_margin_fraction=0.15):
+                                 fontsize_ticks=12, y_margin_fraction=0.15, x_axis_mode='step'):
         """
         Plot aligned mechanisms with user-defined placeholders (None or 'x')
         Placeholders are skipped and states are connected naturally
@@ -821,9 +869,11 @@ class FreeEnergyDiagramPlotter:
                     cumulative_energy += delta_G
                     
                     # Check if electrochemical and count electrons
-                    # Count all electrons (ele_g or pe_g) in reactants
-                    electron_count = sum(1 for r in rxn_data['reactants'] if r in ['ele_g', 'pe_g'])
-                    has_electron = electron_count > 0
+                    # Count all electrons (ele_g or pe_g) in reactants OR products
+                    electron_count_reactants = sum(1 for r in rxn_data['reactants'] if r in ['ele_g', 'pe_g'])
+                    electron_count_products = sum(1 for p in rxn_data['products'] if p in ['ele_g', 'pe_g'])
+                    electron_count = electron_count_reactants  # For cumulative count, use reactants
+                    has_electron = (electron_count_reactants > 0) or (electron_count_products > 0)
                     is_electrochemical.append(has_electron)
                     
                     # Update cumulative electron count with actual number of electrons
@@ -869,30 +919,37 @@ class FreeEnergyDiagramPlotter:
             is_electrochemical = mech_data['is_electrochemical']
             n_electrons = mech_data['n_electrons']
             
-            # Calculate x positions with offsets for consecutive same-n transitions
-            x_base = np.array(n_electrons, dtype=float)
-            x_pos_mech = x_base.copy()
-            
-            # Find real (non-None) state indices for consecutive checking
-            real_indices = [i for i, s in enumerate(states) if s is not None]
-            
-            # Track which states are in same-n transitions
-            same_n_states = set()
-            
-            # Check consecutive real states
-            for idx in range(len(real_indices) - 1):
-                i = real_indices[idx]
-                j = real_indices[idx + 1]
+            # Determine x positions based on x_axis_mode
+            if x_axis_mode == 'electron':
+                # Use n(H+ + e-) as x positions
+                x_base = np.array(n_electrons, dtype=float)
+                x_pos_mech = x_base.copy()
                 
-                if x_base[i] == x_base[j]:
-                    # Consecutive states with same n
-                    # First state (i) gets -same_n_offset
-                    x_pos_mech[i] = x_base[i] - same_n_offset
-                    # Second state (j) stays at original position
-                    x_pos_mech[j] = x_base[j]
-                    # Mark both as part of same-n transition
-                    same_n_states.add(i)
-                    same_n_states.add(j)
+                # Find real (non-None) state indices for consecutive checking
+                real_indices = [i for i, s in enumerate(states) if s is not None]
+                
+                # Track which states are in same-n transitions
+                same_n_states = set()
+                
+                # Check consecutive real states
+                for idx in range(len(real_indices) - 1):
+                    i = real_indices[idx]
+                    j = real_indices[idx + 1]
+                    
+                    if x_base[i] == x_base[j]:
+                        # Consecutive states with same n
+                        # First state (i) gets -same_n_offset
+                        x_pos_mech[i] = x_base[i] - same_n_offset
+                        # Second state (j) stays at original position
+                        x_pos_mech[j] = x_base[j]
+                        # Mark both as part of same-n transition
+                        same_n_states.add(i)
+                        same_n_states.add(j)
+            else:  # x_axis_mode == 'step'
+                # Use step order as x positions (0, 1, 2, 3, ...)
+                x_pos_mech = np.arange(len(states), dtype=float)
+                # No same-n transitions when using step order
+                same_n_states = set()
             
             # Draw horizontal lines only for non-None states
             for i in range(len(states)):
@@ -982,18 +1039,29 @@ class FreeEnergyDiagramPlotter:
                            ha='center', va='bottom' if idx % 2 == 0 else 'top',
                            fontsize=fontsize_label, rotation=0, color=label_color)  # Use mechanism color
         
-        # Get all unique n_electron values for x-axis ticks
-        all_n_electrons = set()
-        for mech_data in all_mechanism_data:
-            all_n_electrons.update([n for n in mech_data['n_electrons'] if n is not None])
-        all_n_electrons = sorted(list(all_n_electrons))
-        
         # Formatting
-        ax.set_xlabel('n(H⁺ + e⁻)', fontsize=fontsize_axis)
         ax.set_ylabel('G (eV)', fontsize=fontsize_axis)
-        if all_n_electrons:
-            ax.set_xticks(all_n_electrons)
-            ax.set_xticklabels([f'{int(n)}' for n in all_n_electrons])
+        
+        if x_axis_mode == 'electron':
+            # Get all unique n_electron values for x-axis ticks
+            all_n_electrons = set()
+            for mech_data in all_mechanism_data:
+                all_n_electrons.update([n for n in mech_data['n_electrons'] if n is not None])
+            all_n_electrons = sorted(list(all_n_electrons))
+            
+            ax.set_xlabel('n(H⁺ + e⁻)', fontsize=fontsize_axis)
+            if all_n_electrons:
+                ax.set_xticks(all_n_electrons)
+                ax.set_xticklabels([f'{int(n)}' for n in all_n_electrons])
+        else:  # x_axis_mode == 'step'
+            # Get maximum number of states for x-axis ticks
+            max_states = max(len(mech_data['states']) for mech_data in all_mechanism_data)
+            all_steps = list(range(max_states))
+            
+            ax.set_xlabel('Reaction Coordinate', fontsize=fontsize_axis)
+            if all_steps:
+                ax.set_xticks(all_steps)
+                ax.set_xticklabels([f'{int(n)}' for n in all_steps])
         
         # Set tick label font sizes
         ax.tick_params(axis='both', which='major', labelsize=fontsize_ticks)
@@ -1046,7 +1114,8 @@ class FreeEnergyDiagramPlotter:
                           fontsize_legend: int = 11,
                           fontsize_ticks: int = 12,
                           y_margin_fraction: float = 0.15,
-                          show_voltage_text: bool = False) -> plt.Figure:
+                          show_voltage_text: bool = False,
+                          x_axis_mode: str = 'step') -> plt.Figure:
         """
         Compare different reaction mechanisms
         
@@ -1074,6 +1143,7 @@ class FreeEnergyDiagramPlotter:
             fontsize_ticks: Font size for tick labels
             y_margin_fraction: Fraction of y-range to add as margin
             show_voltage_text: Whether to show voltage text in plot
+            x_axis_mode: X-axis mode - 'step' for reaction coordinate (default) or 'electron' for n(H+ + e-)
         
         Returns:
             Matplotlib figure object
@@ -1095,17 +1165,29 @@ class FreeEnergyDiagramPlotter:
         
         # Calculate dynamic figure size if not provided
         if figsize is None:
-            # Find maximum x range across all mechanisms
-            max_x_range = 0
-            for name in mech_names:
-                try:
-                    data = self.calculate_mechanism_energies(name, verbose=False)
-                    n_electrons = data['n_electrons']
-                    x_range = max(n_electrons) - min(n_electrons)
-                    max_x_range = max(max_x_range, x_range)
-                except:
-                    pass
-            dynamic_width = base_width + width_per_n * max_x_range
+            if x_axis_mode == 'electron':
+                # Find maximum x range across all mechanisms
+                max_x_range = 0
+                for name in mech_names:
+                    try:
+                        data = self.calculate_mechanism_energies(name, verbose=False)
+                        n_electrons = data['n_electrons']
+                        x_range = max(n_electrons) - min(n_electrons)
+                        max_x_range = max(max_x_range, x_range)
+                    except:
+                        pass
+                dynamic_width = base_width + width_per_n * max_x_range
+            else:  # x_axis_mode == 'step'
+                # Find maximum number of steps across all mechanisms
+                max_steps = 0
+                for name in mech_names:
+                    try:
+                        data = self.calculate_mechanism_energies(name, verbose=False)
+                        n_steps = len(data['states']) - 1
+                        max_steps = max(max_steps, n_steps)
+                    except:
+                        pass
+                dynamic_width = base_width + width_per_n * max_steps
             figsize = (dynamic_width, height)
         
         fig, ax = plt.subplots(figsize=figsize)
@@ -1115,7 +1197,10 @@ class FreeEnergyDiagramPlotter:
                                      show_barriers, show_labels,
                                      bar_width_small, bar_width_large, same_n_offset,
                                      initial_label, fontsize_label, fontsize_axis,
-                                     fontsize_ticks, y_margin_fraction)
+                                     fontsize_ticks, y_margin_fraction, x_axis_mode)
+        
+        # Add horizontal line at y=0
+        ax.axhline(y=0, color='black', linestyle='-', linewidth=1, alpha=0.3, zorder=0)
         
         # Add vertical dotted grid lines at 0.5, 1.5, 2.5, ...
         x_lim = ax.get_xlim()
@@ -1126,7 +1211,7 @@ class FreeEnergyDiagramPlotter:
         
         # Add voltage text inside the plot
         if show_voltage_text:
-            voltage_text = f'U = {self.voltage:.1f} V vs. RHE'
+            voltage_text = f'U = {self.voltage:.2f} V vs. RHE'
             ax.text(0.02, 0.98, voltage_text, transform=ax.transAxes,
                    fontsize=fontsize_ticks, verticalalignment='top',
                    bbox=dict(boxstyle='round,pad=0.5', facecolor='white', edgecolor='gray', alpha=0.8))
@@ -1141,19 +1226,20 @@ class FreeEnergyDiagramPlotter:
                          ncol=min(len(mech_names), 4), frameon=False)
             else:
                 ax.legend(fontsize=fontsize_legend, loc=legend_position, frameon=False)
-        ax.set_title(f'Mechanism Comparison at U={self.voltage:.1f} V vs RHE',
+        ax.set_title(f'Mechanism Comparison at U={self.voltage:.2f} V vs RHE',
                     fontsize=fontsize_title, fontweight='bold')
         
         plt.tight_layout()
         return fig
     
-    def save_mechanism_data(self, data: Dict, csv_path: str) -> None:
+    def save_mechanism_data(self, data: Dict, csv_path: str, x_axis_mode: str = 'step') -> None:
         """
         Save mechanism raw data to CSV file
         
         Args:
             data: Dictionary returned by calculate_mechanism_energies
             csv_path: Path to save CSV file
+            x_axis_mode: X-axis mode - 'step' or 'electron' (default: 'step')
         """
         # Extract data
         mechanism_name = data['mechanism_name']
@@ -1165,18 +1251,26 @@ class FreeEnergyDiagramPlotter:
         is_electrochemical = data.get('is_electrochemical', [])
         step_indices = data['step_indices']
         
+        # Calculate x coordinates based on mode
+        n_states = len(states)
+        if x_axis_mode == 'electron':
+            x_coords = n_electrons
+        else:  # x_axis_mode == 'step'
+            x_coords = list(range(n_states))
+        
         # Prepare data for CSV
         rows = []
         
         # Initial state
         rows.append({
             'Step': 0,
-            'Reaction_Step': 'Initial',
-            'State': labels[0],
-            'n(H+ + e-)': n_electrons[0],
-            'G (eV)': round(states[0], 2),
+            'Label': labels[0],
+            'X': x_coords[0],
+            'G (eV)': round(states[0], 4),
             'ΔG (eV)': 0.0,
             'Ga (eV)': '',
+            'Reaction_Step': 'Initial',
+            'n(H+ + e-)': n_electrons[0],
             'Electrochemical': '',
             'Temperature (K)': data['temperature'],
             'Voltage (V)': data['voltage']
@@ -1189,12 +1283,13 @@ class FreeEnergyDiagramPlotter:
             
             rows.append({
                 'Step': i + 1,
+                'Label': labels[i + 1],
+                'X': x_coords[i + 1],
+                'G (eV)': round(states[i + 1], 4),
+                'ΔG (eV)': round(delta_G_values[i], 4),
+                'Ga (eV)': round(Ga_values[i], 4) if Ga_values[i] is not None else '',
                 'Reaction_Step': rxn_data['equation'],
-                'State': labels[i + 1],
                 'n(H+ + e-)': n_electrons[i + 1],
-                'G (eV)': round(states[i + 1], 2),
-                'ΔG (eV)': round(delta_G_values[i], 2),
-                'Ga (eV)': round(Ga_values[i], 2) if Ga_values[i] is not None else '',
                 'Electrochemical': 'Yes' if is_electrochemical[i] else 'No',
                 'Temperature (K)': data['temperature'],
                 'Voltage (V)': data['voltage']
@@ -1300,7 +1395,8 @@ def compare_catalysts_mechanisms(
     fontsize_legend: int = 11,
     fontsize_ticks: int = 12,
     y_margin_fraction: float = 0.15,
-    show_voltage_text: bool = False) -> plt.Figure:
+    show_voltage_text: bool = False,
+    x_axis_mode: str = 'step') -> plt.Figure:
     """
     Compare multiple catalysts and mechanisms with flexible subplot arrangement
     
@@ -1332,6 +1428,7 @@ def compare_catalysts_mechanisms(
         fontsize_ticks: Font size for tick labels
         y_margin_fraction: Fraction of y-range to add as margin
         show_voltage_text: Whether to show voltage text in plot
+        x_axis_mode: X-axis mode - 'step' for reaction coordinate (default) or 'electron' for n(H+ + e-)
     
     Returns:
         Matplotlib figure object with subplots
@@ -1375,18 +1472,31 @@ def compare_catalysts_mechanisms(
     
     # Calculate dynamic figure size if not provided
     if figsize_per_plot is None:
-        # Find maximum x range across all mechanisms and catalysts
-        max_x_range = 0
-        for plotter in plotters.values():
-            for mech in mechanisms:
-                try:
-                    data = plotter.calculate_mechanism_energies(mech, verbose=False)
-                    n_electrons = data['n_electrons']
-                    x_range = max(n_electrons) - min(n_electrons)
-                    max_x_range = max(max_x_range, x_range)
-                except:
-                    pass
-        dynamic_width = base_width + width_per_n * max_x_range
+        if x_axis_mode == 'electron':
+            # Find maximum x range across all mechanisms and catalysts
+            max_x_range = 0
+            for plotter in plotters.values():
+                for mech in mechanisms:
+                    try:
+                        data = plotter.calculate_mechanism_energies(mech, verbose=False)
+                        n_electrons = data['n_electrons']
+                        x_range = max(n_electrons) - min(n_electrons)
+                        max_x_range = max(max_x_range, x_range)
+                    except:
+                        pass
+            dynamic_width = base_width + width_per_n * max_x_range
+        else:  # x_axis_mode == 'step'
+            # Find maximum number of steps across all mechanisms and catalysts
+            max_steps = 0
+            for plotter in plotters.values():
+                for mech in mechanisms:
+                    try:
+                        data = plotter.calculate_mechanism_energies(mech, verbose=False)
+                        n_steps = len(data['states']) - 1
+                        max_steps = max(max_steps, n_steps)
+                    except:
+                        pass
+            dynamic_width = base_width + width_per_n * max_steps
         figsize_per_plot = (dynamic_width, height)
     
     # Create figure with subplots
@@ -1455,7 +1565,8 @@ def compare_catalysts_mechanisms(
                     fontsize_legend=fontsize_legend,
                     fontsize_ticks=fontsize_ticks,
                     y_margin_fraction=y_margin_fraction,
-                    show_voltage_text=show_voltage_text
+                    show_voltage_text=show_voltage_text,
+                    x_axis_mode=x_axis_mode
                 )
                 
                 # Collect y values for ylim
@@ -1501,7 +1612,8 @@ def compare_catalysts_mechanisms(
                     fontsize_legend=fontsize_legend,
                     fontsize_ticks=fontsize_ticks,
                     y_margin_fraction=y_margin_fraction,
-                    show_voltage_text=show_voltage_text
+                    show_voltage_text=show_voltage_text,
+                    x_axis_mode=x_axis_mode
                 )
                 
                 # Collect y values for ylim
@@ -1564,7 +1676,7 @@ def compare_catalysts_mechanisms(
     
     # Add overall title
     voltage = list(plotters.values())[0].voltage
-    fig.suptitle(f'Catalyst & Mechanism Comparison at U={voltage:.1f} V vs RHE',
+    fig.suptitle(f'Catalyst & Mechanism Comparison at U={voltage:.2f} V vs RHE',
                 fontsize=fontsize_title, fontweight='bold', y=0.98)
     
     plt.tight_layout(rect=[0, 0, 1, 0.96])
