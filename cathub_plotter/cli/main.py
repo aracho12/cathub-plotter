@@ -914,7 +914,8 @@ def search_command(args):
     try:
         calc = FreeEnergyCalculator(
             temperature=args.temperature,
-            voltage=args.voltage
+            voltage=args.voltage,
+            use_solvation=args.solvation
         )
         
         results = calc.search_and_calculate(
@@ -932,7 +933,16 @@ def search_command(args):
             return
         
         print(f"Found {len(results)} reactions:")
-        print(results[['equation', 'delta_G', 'composition', 'facet']].to_string())
+        # Select and rename columns for display
+        # ∆F_thermo = ∆H - T∆S = ∆ZPE + ∆Cp - T∆S
+        # ∆G = ∆E + ∆F_thermo + ∆E_solv
+        display_cols = ['equation', 'delta_E_DFT', 'delta_ZPE', 'delta_Cp', 'temperature', 'delta_S', 'minus_TdS', 'delta_F_thermo', 'delta_E_solv', 'delta_G']
+        display_df = results[display_cols].copy()
+        display_df.columns = ['equation', '∆E', '∆ZPE', '∆Cp', 'T (K)', '∆S', '-T∆S', '∆F_thermo', '∆E_solv', '∆G']
+        # Format numeric columns to 2 decimal places
+        numeric_cols = ['∆E', '∆ZPE', '∆Cp', 'T (K)', '∆S', '-T∆S', '∆F_thermo', '∆E_solv', '∆G']
+        display_df[numeric_cols] = display_df[numeric_cols].round(2)
+        print(display_df.to_string())
         
         if args.output:
             results.to_csv(args.output, index=False)
@@ -1063,6 +1073,7 @@ Examples:
     search_parser.add_argument('--dft-functional', help='DFT functional (e.g., RPBE, PBE)')
     search_parser.add_argument('--temperature', type=float, default=298.15, help='Temperature in K (default: 298.15)')
     search_parser.add_argument('--voltage', type=float, default=0.0, help='Voltage in V (default: 0.0)')
+    search_parser.add_argument('--solvation', action='store_true', help='Apply solvation energy corrections')
     search_parser.add_argument('--limit', type=int, default=50, help='Maximum number of results (default: 50)')
     search_parser.add_argument('--output', '-o', help='Output CSV file path')
     search_parser.set_defaults(func=search_command)

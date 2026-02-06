@@ -21,7 +21,7 @@ class FreeEnergyCalculator:
     }
     
     def __init__(self, temperature=298.15, voltage=0.0, fugacity_dict=None, 
-                 use_solvation=True, solvation_dict=None):
+                 use_solvation=False, solvation_dict=None):
         """
         Initialize calculator with thermodynamic conditions
         
@@ -29,7 +29,7 @@ class FreeEnergyCalculator:
             temperature: Temperature in Kelvin
             voltage: Electrochemical potential in Volts
             fugacity_dict: Dictionary of gas fugacities {species: fugacity_in_Pa}
-            use_solvation: Whether to apply solvation energy corrections (default: True)
+            use_solvation: Whether to apply solvation energy corrections (default: False)
             solvation_dict: Custom solvation energies {species: energy_in_eV}
                            If None, uses DEFAULT_SOLVATION_DICT + database values
         """
@@ -161,6 +161,9 @@ class FreeEnergyCalculator:
         """
         # Calculate thermodynamic and solvation corrections for reactants
         F_reactants = 0
+        ZPE_reactants = 0
+        Cp_reactants = 0
+        S_reactants = 0
         E_solv_reactants = 0
         F_reactants_detail = {}
         E_solv_reactants_detail = {}
@@ -182,6 +185,9 @@ class FreeEnergyCalculator:
                 )
                 # Multiply by stoichiometric coefficient
                 F_reactants += thermo['F'] * coeff
+                ZPE_reactants += thermo['ZPE'] * coeff
+                Cp_reactants += thermo['Cp'] * coeff
+                S_reactants += thermo['S'] * coeff
                 F_reactants_detail[f"{coeff} {species}"] = thermo['F'] * coeff
                 
                 # Solvation energy correction
@@ -196,6 +202,9 @@ class FreeEnergyCalculator:
         
         # Calculate thermodynamic and solvation corrections for products
         F_products = 0
+        ZPE_products = 0
+        Cp_products = 0
+        S_products = 0
         E_solv_products = 0
         F_products_detail = {}
         E_solv_products_detail = {}
@@ -215,6 +224,9 @@ class FreeEnergyCalculator:
                     frequencies=None
                 )
                 F_products += thermo['F'] * coeff
+                ZPE_products += thermo['ZPE'] * coeff
+                Cp_products += thermo['Cp'] * coeff
+                S_products += thermo['S'] * coeff
                 F_products_detail[f"{coeff} {species}"] = thermo['F'] * coeff
                 
                 # Solvation energy correction
@@ -229,6 +241,10 @@ class FreeEnergyCalculator:
         
         # Calculate energy changes
         delta_F_thermo = F_products - F_reactants
+        delta_ZPE = ZPE_products - ZPE_reactants
+        delta_Cp = Cp_products - Cp_reactants
+        delta_S = S_products - S_reactants
+        minus_TdS = -self.temperature * delta_S
         delta_E_solv = E_solv_products - E_solv_reactants
         delta_E_DFT = reaction['reaction_energy']
         delta_G = delta_E_DFT + delta_F_thermo + delta_E_solv
@@ -245,12 +261,23 @@ class FreeEnergyCalculator:
             'pub_id': reaction.get('pub_id', 'Unknown'),
             'pub_authors': reaction.get('pub_authors', 'Unknown'),
             'pub_year': reaction.get('pub_year', 'Unknown'),
+            'temperature': self.temperature,
             'delta_E_DFT': delta_E_DFT,
+            'delta_ZPE': delta_ZPE,
+            'delta_Cp': delta_Cp,
+            'delta_S': delta_S,
+            'minus_TdS': minus_TdS,
             'delta_F_thermo': delta_F_thermo,
             'delta_E_solv': delta_E_solv,
             'delta_G': delta_G,
             'F_reactants': F_reactants,
             'F_products': F_products,
+            'ZPE_reactants': ZPE_reactants,
+            'ZPE_products': ZPE_products,
+            'Cp_reactants': Cp_reactants,
+            'Cp_products': Cp_products,
+            'S_reactants': S_reactants,
+            'S_products': S_products,
             'E_solv_reactants': E_solv_reactants,
             'E_solv_products': E_solv_products,
             'F_reactants_detail': F_reactants_detail,
