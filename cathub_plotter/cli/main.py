@@ -937,12 +937,12 @@ def search_command(args):
         # ∆F_thermo = ∆H - T∆S = ∆ZPE + ∆Cp - T∆S
         # ∆G = ∆E + ∆F_thermo + ∆E_solv
         if args.solvation:
-            display_cols = ['equation', 'delta_E_DFT', 'delta_ZPE', 'delta_Cp', 'temperature', 'delta_S', 'minus_TdS', 'delta_F_thermo', 'delta_E_solv', 'delta_G']
-            col_names = ['equation', '∆E', '∆ZPE', '∆Cp', 'T (K)', '∆S', '-T∆S', '∆F_thermo', '∆E_solv', '∆G']
+            display_cols = ['equation', 'composition', 'facet', 'delta_E_DFT', 'delta_ZPE', 'delta_Cp', 'temperature', 'delta_S', 'minus_TdS', 'delta_F_thermo', 'delta_E_solv', 'delta_G']
+            col_names = ['equation', 'composition', 'facet', '∆E', '∆ZPE', '∆Cp', 'T (K)', '∆S', '-T∆S', '∆F_thermo', '∆E_solv', '∆G']
             numeric_cols = ['∆E', '∆ZPE', '∆Cp', 'T (K)', '∆S', '-T∆S', '∆F_thermo', '∆E_solv', '∆G']
         else:
-            display_cols = ['equation', 'delta_E_DFT', 'delta_ZPE', 'delta_Cp', 'temperature', 'delta_S', 'minus_TdS', 'delta_F_thermo', 'delta_G']
-            col_names = ['equation', '∆E', '∆ZPE', '∆Cp', 'T (K)', '∆S', '-T∆S', '∆F_thermo', '∆G']
+            display_cols = ['equation', 'composition', 'facet', 'delta_E_DFT', 'delta_ZPE', 'delta_Cp', 'temperature', 'delta_S', 'minus_TdS', 'delta_F_thermo', 'delta_G']
+            col_names = ['equation', 'composition', 'facet', '∆E', '∆ZPE', '∆Cp', 'T (K)', '∆S', '-T∆S', '∆F_thermo', '∆G']
             numeric_cols = ['∆E', '∆ZPE', '∆Cp', 'T (K)', '∆S', '-T∆S', '∆F_thermo', '∆G']
         display_df = results[display_cols].copy()
         display_df.columns = col_names
