@@ -323,6 +323,7 @@ class FreeEnergyDiagramPlotter:
                       show_rds: bool = False,
                       rds_linewidth: float = 4.0,
                       legend_position: str = 'right',
+                      figsize: Optional[tuple] = None,
                       width_per_n: float = 1.5,
                       base_width: float = 4.0,
                       height: float = 6.0,
@@ -338,7 +339,8 @@ class FreeEnergyDiagramPlotter:
                       ylim: Optional[tuple] = None,
                       x_axis_mode: str = 'step',
                       save_path: Optional[str] = None,
-                      save_data: bool = True) -> plt.Figure:
+                      save_data: bool = True,
+                      print_figsize: bool = True) -> plt.Figure:
         """
         Plot free energy diagram for a mechanism
         
@@ -360,6 +362,7 @@ class FreeEnergyDiagramPlotter:
             show_rds: Whether to highlight the Rate Determining Step (largest ΔG)
             rds_linewidth: Line width for the RDS step (default: 4.0)
             legend_position: Legend position ('right', 'upper right', 'best', etc.) or None to disable
+            figsize: Figure size as tuple (width, height) in inches. If None, calculated dynamically.
             width_per_n: Width per n(H+ + e-) unit (default: 1.5)
             base_width: Minimum figure width (default: 4.0)
             height: Figure height (default: 6.0)
@@ -375,6 +378,7 @@ class FreeEnergyDiagramPlotter:
             ylim: Y-axis limits as tuple (ymin, ymax). If None, automatically calculated.
             x_axis_mode: X-axis mode - 'step' for reaction coordinate (default) or 'electron' for n(H+ + e-)
             save_data: Whether to save raw data to CSV file (default: True)
+            print_figsize: Whether to print figure size (default: True, set to False when called internally)
         
         Returns:
             Matplotlib figure object
@@ -435,9 +439,18 @@ class FreeEnergyDiagramPlotter:
             n_steps = len(states) - 1
             dynamic_width = base_width + width_per_n * n_steps
         
+        # Determine figure size
+        if figsize is not None:
+            # Use user-specified figsize
+            fig_width, fig_height = figsize
+        else:
+            # Use dynamic or default size
+            fig_width = dynamic_width
+            fig_height = height
+        
         # Create figure if needed
         if ax is None:
-            fig, ax = plt.subplots(figsize=(dynamic_width, height))
+            fig, ax = plt.subplots(figsize=(fig_width, fig_height))
         else:
             fig = ax.get_figure()
         
@@ -642,6 +655,11 @@ class FreeEnergyDiagramPlotter:
         
         plt.tight_layout()
         
+        # Print figure size (only if requested)
+        if print_figsize:
+            figsize = fig.get_size_inches()
+            print(f"Figure size: {figsize[0]:.2f} x {figsize[1]:.2f} inches")
+        
         # Save figure if path is provided
         if save_path:
             fig.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -673,7 +691,9 @@ class FreeEnergyDiagramPlotter:
                         fontsize_legend: int = 11,
                         fontsize_ticks: int = 12,
                         y_margin_fraction: float = 0.15,
-                        x_axis_mode: str = 'step') -> plt.Figure:
+                        x_axis_mode: str = 'step',
+                        bar_width_small: float = 0.3,
+                        bar_width_large: float = 0.6) -> plt.Figure:
         """
         Compare free energy diagrams at different voltages
         
@@ -750,7 +770,10 @@ class FreeEnergyDiagramPlotter:
                 fontsize_ticks=fontsize_ticks,
                 y_margin_fraction=y_margin_fraction,
                 show_voltage_text=False,  # Don't show voltage text when comparing multiple voltages
-                x_axis_mode=x_axis_mode
+                x_axis_mode=x_axis_mode,
+                bar_width_small=bar_width_small,
+                bar_width_large=bar_width_large,
+                print_figsize=False  # Don't print size for each voltage
             )
         
         # Add legend
@@ -767,6 +790,11 @@ class FreeEnergyDiagramPlotter:
                     fontsize=fontsize_title, fontweight='bold')
         
         plt.tight_layout()
+        
+        # Print figure size
+        figsize = fig.get_size_inches()
+        print(f"Figure size: {figsize[0]:.2f} x {figsize[1]:.2f} inches")
+        
         return fig
     
     def _align_mechanisms(self, mechanism_names: List[str]) -> Dict:
@@ -1230,6 +1258,11 @@ class FreeEnergyDiagramPlotter:
                     fontsize=fontsize_title, fontweight='bold')
         
         plt.tight_layout()
+        
+        # Print figure size
+        figsize = fig.get_size_inches()
+        print(f"Figure size: {figsize[0]:.2f} x {figsize[1]:.2f} inches")
+        
         return fig
     
     def save_mechanism_data(self, data: Dict, csv_path: str, x_axis_mode: str = 'step') -> None:
@@ -1566,7 +1599,8 @@ def compare_catalysts_mechanisms(
                     fontsize_ticks=fontsize_ticks,
                     y_margin_fraction=y_margin_fraction,
                     show_voltage_text=show_voltage_text,
-                    x_axis_mode=x_axis_mode
+                    x_axis_mode=x_axis_mode,
+                    print_figsize=False  # Don't print for each subplot
                 )
                 
                 # Collect y values for ylim
@@ -1613,7 +1647,8 @@ def compare_catalysts_mechanisms(
                     fontsize_ticks=fontsize_ticks,
                     y_margin_fraction=y_margin_fraction,
                     show_voltage_text=show_voltage_text,
-                    x_axis_mode=x_axis_mode
+                    x_axis_mode=x_axis_mode,
+                    print_figsize=False  # Don't print for each subplot
                 )
                 
                 # Collect y values for ylim
@@ -1680,6 +1715,11 @@ def compare_catalysts_mechanisms(
                 fontsize=fontsize_title, fontweight='bold', y=0.98)
     
     plt.tight_layout(rect=[0, 0, 1, 0.96])
+    
+    # Print figure size
+    figsize = fig.get_size_inches()
+    print(f"Figure size: {figsize[0]:.2f} x {figsize[1]:.2f} inches")
+    
     return fig
 
 

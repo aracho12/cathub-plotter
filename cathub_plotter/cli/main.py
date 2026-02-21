@@ -103,6 +103,11 @@ def plot_command(args):
             plot_kwargs['ylim'] = args.ylim
         if hasattr(args, 'x_axis') and args.x_axis is not None:
             plot_kwargs['x_axis_mode'] = args.x_axis
+        if hasattr(args, 'figsize') and args.figsize is not None:
+            plot_kwargs['figsize'] = tuple(args.figsize)
+        if hasattr(args, 'bar_width') and args.bar_width is not None:
+            plot_kwargs['bar_width_small'] = args.bar_width
+            plot_kwargs['bar_width_large'] = args.bar_width
         
         if args.mechanism:
             plotter.plot_mechanism(args.mechanism, save_path=args.output, **plot_kwargs)
@@ -417,6 +422,12 @@ def _compare_1d(args, vary_param: str):
         # Prepare figsize
         figsize = tuple(args.figsize) if hasattr(args, 'figsize') and args.figsize else None
         
+        # Prepare bar_width kwargs
+        bar_width_kwargs = {}
+        if hasattr(args, 'bar_width') and args.bar_width is not None:
+            bar_width_kwargs['bar_width_small'] = args.bar_width
+            bar_width_kwargs['bar_width_large'] = args.bar_width
+        
         fig = plotter.compare_mechanisms(
             mechanism_names=values,
             colors=colors,
@@ -424,7 +435,8 @@ def _compare_1d(args, vary_param: str):
             show_barriers=args.show_barriers,
             show_labels=args.show_labels,
             legend_position=args.legend_position,
-            x_axis_mode=args.x_axis if hasattr(args, 'x_axis') else 'step'
+            x_axis_mode=args.x_axis if hasattr(args, 'x_axis') else 'step',
+            **bar_width_kwargs
         )
     
     elif vary_param == 'voltage':
@@ -454,6 +466,12 @@ def _compare_1d(args, vary_param: str):
         # Prepare figsize
         figsize = tuple(args.figsize) if hasattr(args, 'figsize') and args.figsize else None
         
+        # Prepare bar_width kwargs
+        bar_width_kwargs = {}
+        if hasattr(args, 'bar_width') and args.bar_width is not None:
+            bar_width_kwargs['bar_width_small'] = args.bar_width
+            bar_width_kwargs['bar_width_large'] = args.bar_width
+        
         fig = plotter.compare_voltages(
             mechanism_name=base_mechanism,
             voltages=values,
@@ -462,7 +480,8 @@ def _compare_1d(args, vary_param: str):
             show_barriers=args.show_barriers,
             show_labels=args.show_labels,
             legend_position=args.legend_position,
-            x_axis_mode=args.x_axis if hasattr(args, 'x_axis') else 'step'
+            x_axis_mode=args.x_axis if hasattr(args, 'x_axis') else 'step',
+            **bar_width_kwargs
         )
     
     elif vary_param in ['temperature', 'surface', 'facet']:
@@ -510,6 +529,12 @@ def _compare_1d(args, vary_param: str):
         if colors:
             color_map = {label: colors[idx] for idx, label in enumerate(plotters.keys()) if idx < len(colors)}
         
+        # Prepare bar_width kwargs
+        bar_width_kwargs = {}
+        if hasattr(args, 'bar_width') and args.bar_width is not None:
+            bar_width_kwargs['bar_width_small'] = args.bar_width
+            bar_width_kwargs['bar_width_large'] = args.bar_width
+        
         fig = compare_catalysts_mechanisms(
             plotters=plotters,
             mechanisms=[base_mechanism],
@@ -519,7 +544,8 @@ def _compare_1d(args, vary_param: str):
             show_labels=args.show_labels,
             show_legend=True,
             legend_position=args.legend_position,
-            x_axis_mode=args.x_axis if hasattr(args, 'x_axis') else 'step'
+            x_axis_mode=args.x_axis if hasattr(args, 'x_axis') else 'step',
+            **bar_width_kwargs
         )
     
     # Save figure
@@ -1003,6 +1029,8 @@ Examples:
     plot_parser.add_argument('--ylim', nargs=2, type=float, metavar=('YMIN', 'YMAX'), help='Y-axis limits (e.g., --ylim -0.1 0.3)')
     plot_parser.add_argument('--x-axis', choices=['step', 'electron'], default='step', help='X-axis mode: "step" for reaction coordinate (default) or "electron" for n(H+ + e-)')
     plot_parser.add_argument('--use-gibbs', action='store_true', help='Treat formation_energy as Gibbs free energy at U=0V (no thermo corrections, only voltage correction)')
+    plot_parser.add_argument('--figsize', nargs=2, type=float, metavar=('WIDTH', 'HEIGHT'), help='Figure size in inches (e.g., --figsize 8 6)')
+    plot_parser.add_argument('--bar-width', type=float, default=0.6, help='Width of bars in the diagram (default: 0.6)')
     plot_parser.add_argument('--output', '-o', help='Output file path')
     plot_parser.add_argument('--save-data', action='store_true', help='Save raw data (reaction steps, energies) to CSV file')
     plot_parser.set_defaults(func=plot_command)
@@ -1048,6 +1076,7 @@ Examples:
                                help='X-axis mode: "step" for reaction coordinate (default) or "electron" for n(H+ + e-)')
     compare_parser.add_argument('--use-gibbs', action='store_true', 
                                help='Treat formation_energy as Gibbs free energy at U=0V (no thermo corrections, only voltage correction)')
+    compare_parser.add_argument('--bar-width', type=float, default=0.6, help='Width of bars in the diagram (default: 0.6)')
     compare_parser.add_argument('--output', '-o', help='Output file path')
     compare_parser.add_argument('--save-data', action='store_true', 
                                help='Save raw comparison data (energies for all conditions) to CSV file')
